@@ -152,12 +152,15 @@ def createModel():
 
 
 def initialize():
-    training_list = get_lists_from_file('test_driving_log.csv')
+    # training_list = get_lists_from_file('test_driving_log.csv')
+    training_list = get_lists_from_file('data/driving_log.csv')
     np.random.shuffle(training_list)
     model = createModel()
     # ipdb.set_trace()
     # history =model.fit(np.array(img_list), np.array(angle_list),
     #     batch_size=12, nb_epoch=50, validation_split=0.5, shuffle=True)
+    # history = model.fit_generator(generate_arrays_from_lists(training_list),
+    #     samples_per_epoch=24, nb_epoch=15)
     history = model.fit_generator(generate_arrays_from_lists(training_list),
         samples_per_epoch=24, nb_epoch=15)
     # model.fit_generator(generate_arrays_from_file('data/driving_log.csv'),
