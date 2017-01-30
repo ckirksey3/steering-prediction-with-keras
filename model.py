@@ -33,23 +33,21 @@ def image_pre_processing(img):
     processed = processed[60:160, 0:320]
     return processed
 
-def process_line(line, asList):
+def process_line(line):
     items = [x.strip() for x in line.split(',')]
     center_img_loc = items[0]
     steering_angle = items[3]
     # steering_angle = (float(items[3]) + 1.0)/2.0
-    if(asList):
-        return center_img_loc, np.array([steering_angle])
-    else:
-        return center_img_loc, steering_angle
+    return center_img_loc, steering_angle
 
 def process_img(image_array):
     image_array = image_pre_processing(image_array)
     image_array = scipy.misc.imresize(image_array, (50, 160))
     image_array = image_array[None, :, :, None]
+    image_array_flipped = np.fliplr(image_array)
     # change to this when sending to model.fit
     #image_array = image_array[:, :, None]
-    return image_array
+    return image_array, image_array_flipped
 
 def generate_arrays_from_file(path):
     # f = open(path)
@@ -73,7 +71,7 @@ def generate_arrays_from_file(path):
     while 1:
         f = open(path)
         for line in f:
-            center_img, steering_angle = process_line(line, True)
+            center_img, steering_angle = process_line(line)
             yield (center_img, steering_angle)
         f.close()
 
@@ -81,7 +79,7 @@ def get_lists_from_file(path):
     f = open(path)
     training_list = []
     for line in f:
-        center_img, steering_angle = process_line(line, True)
+        center_img, steering_angle = process_line(line)
         training_list.append({'center_img': center_img, 'steering_angle': steering_angle})
     return training_list
 
@@ -94,8 +92,9 @@ def generate_arrays_from_lists(training_list):
             image_array = np.asarray(image)
             
             # ipdb.set_trace()
-            transformed_image_array = process_img(image_array)
-            yield (transformed_image_array, steering_angle)
+            transformed_image_array, flipped_transformed_image_array = process_img(image_array)
+            yield(flipped_transformed_image_array, np.array([float(steering_angle) * -1.0]))
+            yield(transformed_image_array, np.array([float(steering_angle)]))
 
 def createModel():
     #Create CNN based on NVIDIA paper (http://images.nvidia.com/content/tegra/automotive/images/2016/solutions/pdf/end-to-end-dl-using-px.pdf)
@@ -160,7 +159,7 @@ def initialize():
     # history =model.fit(np.array(img_list), np.array(angle_list),
     #     batch_size=12, nb_epoch=50, validation_split=0.5, shuffle=True)
     history = model.fit_generator(generate_arrays_from_lists(training_list),
-        samples_per_epoch=12, nb_epoch=15)
+        samples_per_epoch=24, nb_epoch=15)
     # model.fit_generator(generate_arrays_from_file('data/driving_log.csv'),
     #     samples_per_epoch=10000, nb_epoch=5)
     # model.fit_generator(generate_arrays_from_file('driving_log.csv'),

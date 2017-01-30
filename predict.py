@@ -41,10 +41,10 @@ if __name__ == '__main__':
     for test_image in images:
         image = Image.open(test_image[0])
         image_array = np.asarray(image)
-        transformed_image_array = process_img(image_array)
+        transformed_image_array, flipped_transformed_image_array = process_img(image_array)
 
         # steering_angle = (float(model.predict(transformed_image_array, batch_size=1)) * 2.0) - 1.0
-        steering_angle = float(model.predict(np.array(transformed_image_array), batch_size=1))
+        steering_angle = model.predict(np.array(transformed_image_array), batch_size=1)
         if(steering_angle > test_image[1] and steering_angle < test_image[2]):
             print("Passed")
         else:
