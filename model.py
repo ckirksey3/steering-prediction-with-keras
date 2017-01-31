@@ -16,21 +16,36 @@ import gc
 import ipdb
 import matplotlib.pyplot as plt
 
-#Train model
+#Pre processing variables
+BRIGHTNESS_RANGE = 10
+
+# Model dimensions
+INPUT_IMG_WIDTH = 64
+INPUT_IMG_HEIGHT = 64
 
 def image_pre_processing(img):
-    # 1) Convert to grayscale
+    # Add random brightness
+    # Borrowed from Mohan Karthik's post (https://medium.com/@mohankarthik/cloning-a-car-to-mimic-human-driving-5c2f7e8d8aff)
+    # img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    # brightness = BRIGHTNESS_RANGE + np.random.uniform()
+    # img[:, :, 2] = img[:, :, 2] * brightness
+
+    # Convert to grayscale
     processed = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
 
-    # 2) Apply perspective transform
+    # Crop off top and bottom  of image to focus on road
+    processed = processed[60:140, 0:320]
+
+    # Resize image
+    processed = scipy.misc.imresize(processed, (INPUT_IMG_WIDTH, INPUT_IMG_HEIGHT))
+
+     # Apply perspective transform
     # img_size = (img.shape[1], img.shape[0])
     # src = np.float32([(0, 65), (0,320), (160, 320), (160, 65)])
     # dst = np.float32([(0, 0), (0,320), (160, 320), (160, 0)])
     # M = cv2.getPerspectiveTransform(src, dst)
     # processed = cv2.warpPerspective(processed, M, img_size)
 
-    # 3) Crop off top of image
-    processed = processed[60:160, 0:320]
     return processed
 
 def process_line(line):
@@ -42,7 +57,6 @@ def process_line(line):
 
 def process_img(image_array):
     image_array = image_pre_processing(image_array)
-    image_array = scipy.misc.imresize(image_array, (50, 160))
     image_array = image_array[None, :, :, None]
     image_array_flipped = np.fliplr(image_array)
     # change to this when sending to model.fit
@@ -123,7 +137,7 @@ def createModel():
     #               optimizer='adam',
     #               metrics=['accuracy'])
 
-    col, row, ch = 50, 160, 1  # camera format
+    col, row, ch = INPUT_IMG_WIDTH, INPUT_IMG_HEIGHT, 1  # camera format
 
     model = Sequential()
     model.add(Lambda(lambda x: x/127.5 - 1.,
@@ -153,7 +167,7 @@ def createModel():
 
 def initialize():
     # training_list = get_lists_from_file('test_driving_log.csv')
-    training_list = get_lists_from_file('data/driving_log.csv')
+    training_list = get_lists_from_file('data/driving_log_less_zeros.csv')
     np.random.shuffle(training_list)
     model = createModel()
     # ipdb.set_trace()
