@@ -13,8 +13,9 @@ import scipy.misc
 from matplotlib import pyplot as plt
 import cv2
 import gc
-import ipdb
+# import ipdb
 import matplotlib.pyplot as plt
+import random
 
 #Pre processing variables
 BRIGHTNESS_RANGE = 10
@@ -22,6 +23,9 @@ BRIGHTNESS_RANGE = 10
 # Model dimensions
 INPUT_IMG_WIDTH = 64
 INPUT_IMG_HEIGHT = 64
+
+# Angle to adjust by when switching to left/right img
+ANGLE_ADJUSTMENT = 0.15
 
 def image_pre_processing(img):
     # Add random brightness
@@ -39,25 +43,35 @@ def image_pre_processing(img):
     # Resize image
     processed = scipy.misc.imresize(processed, (INPUT_IMG_WIDTH, INPUT_IMG_HEIGHT))
 
-     # Apply perspective transform
-    # img_size = (img.shape[1], img.shape[0])
-    # src = np.float32([(0, 65), (0,320), (160, 320), (160, 65)])
-    # dst = np.float32([(0, 0), (0,320), (160, 320), (160, 0)])
-    # M = cv2.getPerspectiveTransform(src, dst)
-    # processed = cv2.warpPerspective(processed, M, img_size)
-
     return processed
+
+def choose_image_and_adjust_angle(center_img_loc, left_img_loc, right_img_loc, steering_angle):
+    which_image = random.randint(0, 2)
+    image_loc = center_img_loc
+    if(which_image == 1):
+        image_loc = left_img_loc
+        steering_angle += ANGLE_ADJUSTMENT
+        print('chose left with angle: ', steering_angle)
+    elif(which_image == 2):
+        image_loc = right_img_loc
+        steering_angle -= ANGLE_ADJUSTMENT
+        print('chose right with angle: ', steering_angle)
+    return image_loc, steering_angle
 
 def process_line(line):
     items = [x.strip() for x in line.split(',')]
     center_img_loc = items[0]
-    steering_angle = items[3]
-    # steering_angle = (float(items[3]) + 1.0)/2.0
-    return center_img_loc, steering_angle
+    left_img_loc = items[1]
+    right_img_loc = items[2]
+    steering_angle = float(items[3])
+    return choose_image_and_adjust_angle(center_img_loc, left_img_loc, right_img_loc, steering_angle)
 
-def process_img(image_array):
+def process_img(image_array, add_dimension=True):
     image_array = image_pre_processing(image_array)
-    image_array = image_array[None, :, :, None]
+    if(add_dimension):
+        image_array = image_array[None, :, :, None]
+    else:
+        image_array = image_array[:, :, None]
     image_array_flipped = np.fliplr(image_array)
     # change to this when sending to model.fit
     #image_array = image_array[:, :, None]
@@ -90,6 +104,19 @@ def generate_arrays_from_file(path):
         f.close()
 
 def get_lists_from_file(path):
+    f = open(path)
+    img_list = []
+    angle_list = []
+    for line in f:
+        img_loc, steering_angle = process_line(line)
+        image = Image.open(img_loc)
+        image_array = np.asarray(image)
+        transformed_image_array, flipped_transformed_image_array = process_img(image_array, add_dimension=False)
+        img_list.append(transformed_image_array)
+        angle_list.append(steering_angle)
+    return img_list, angle_list
+
+def get_list_from_file(path):
     f = open(path)
     training_list = []
     for line in f:
@@ -165,37 +192,46 @@ def createModel():
     return model
 
 
-def initialize():
-    # training_list = get_lists_from_file('test_driving_log.csv')
-    training_list = get_lists_from_file('data/driving_log_less_zeros.csv')
-    np.random.shuffle(training_list)
+def initialize(training_type="full"):
     model = createModel()
-    # ipdb.set_trace()
-    # history =model.fit(np.array(img_list), np.array(angle_list),
-    #     batch_size=12, nb_epoch=50, validation_split=0.5, shuffle=True)
-    # history = model.fit_generator(generate_arrays_from_lists(training_list),
-    #     samples_per_epoch=24, nb_epoch=15)
-    history = model.fit_generator(generate_arrays_from_lists(training_list),
-        samples_per_epoch=1000, nb_epoch=30)
-    # model.fit_generator(generate_arrays_from_file('data/driving_log.csv'),
-    #     samples_per_epoch=10000, nb_epoch=5)
-    # model.fit_generator(generate_arrays_from_file('driving_log.csv'),
-    #         samples_per_epoch=1000, nb_epoch=15)
-    # model.fit_generator(generate_arrays_from_file('test_driving_log.csv'),
-    #     samples_per_epoch=12, nb_epoch=15)
+    if(training_type == "full"):
+        training_list = get_list_from_file('data/driving_log.csv')
+        np.random.shuffle(training_list)
+        history = model.fit_generator(generate_arrays_from_lists(training_list),
+            samples_per_epoch=1000, nb_epoch=30)
+    if(training_type == "full_with_less_zeros"):
+        training_list = get_list_from_file('data/driving_log_less_zeros.csv')
+        list_length = len(training_list)
+        np.random.shuffle(training_list)
+        history = model.fit_generator(generate_arrays_from_lists(training_list),
+            samples_per_epoch=list_length, nb_epoch=30)
+    if(training_type == "test_from_less_zeros"):
+        training_list = get_list_from_file('data/driving_log_less_zeros.csv')
+        np.random.shuffle(training_list)
+        history = model.fit_generator(generate_arrays_from_lists(training_list),
+            samples_per_epoch=12, nb_epoch=30)
+        plt.plot(history.history['loss'])
+        plt.title('model loss')
+        plt.ylabel('loss')
+        plt.xlabel('epoch')
+        plt.show()
+    elif(training_type == "test_with_3"):
+        img_list, angle_list = get_lists_from_file('test_driving_log.csv')
+        history =model.fit(np.array(img_list), np.array(angle_list),
+            batch_size=12, nb_epoch=50, validation_split=0.5, shuffle=True)
+        # from Jason Brownlee http://machinelearningmastery.com/display-deep-learning-model-training-history-in-keras/
+        # summarize history for loss
+        plt.plot(history.history['loss'])
+        plt.plot(history.history['val_loss'])
+        plt.title('model loss')
+        plt.ylabel('loss')
+        plt.xlabel('epoch')
+        plt.legend(['train', 'test'], loc='upper left')
+        plt.show()
     model.save_weights("model.h5")
-    # from Jason Brownlee http://machinelearningmastery.com/display-deep-learning-model-training-history-in-keras/
-    # summarize history for loss
-    # plt.plot(history.history['loss'])
-    # plt.plot(history.history['val_loss'])
-    # plt.title('model loss')
-    # plt.ylabel('loss')
-    # plt.xlabel('epoch')
-    # plt.legend(['train', 'test'], loc='upper left')
-    # plt.show()
     return model
 
 if __name__ == '__main__':
     gc.collect()
-    initialize()
+    initialize("full_with_less_zeros")
 #TODO implement transfer learning from previous successful models

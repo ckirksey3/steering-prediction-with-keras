@@ -36,7 +36,7 @@ def telemetry(sid, data):
     speed = data["speed"]
     # The current image from the center camera of the car
     imgString = data["image"]
-    print(BytesIO(base64.b64decode(imgString)))
+    # print(BytesIO(base64.b64decode(imgString)))
     image = Image.open(BytesIO(base64.b64decode(imgString)))
     image_array = np.asarray(image)
     transformed_image_array, flipped_transformed_image_array = process_img(image_array)
