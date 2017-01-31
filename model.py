@@ -176,7 +176,7 @@ def initialize():
     # history = model.fit_generator(generate_arrays_from_lists(training_list),
     #     samples_per_epoch=24, nb_epoch=15)
     history = model.fit_generator(generate_arrays_from_lists(training_list),
-        samples_per_epoch=24, nb_epoch=15)
+        samples_per_epoch=1000, nb_epoch=30)
     # model.fit_generator(generate_arrays_from_file('data/driving_log.csv'),
     #     samples_per_epoch=10000, nb_epoch=5)
     # model.fit_generator(generate_arrays_from_file('driving_log.csv'),
