@@ -28,6 +28,9 @@ INPUT_IMG_HEIGHT = 64
 # Angle to adjust by when switching to left/right img
 ANGLE_ADJUSTMENT = 0.15
 
+# Range of noise to add to steering angle
+ANGLE_NOISE_MAX = 0.05
+
 def image_pre_processing(img):
     # Add random brightness
     # Borrowed from Mohan Karthik's post (https://medium.com/@mohankarthik/cloning-a-car-to-mimic-human-driving-5c2f7e8d8aff)
@@ -46,6 +49,10 @@ def image_pre_processing(img):
 
     return processed
 
+# Add random noise to angle to help model avoid being stuck in a local minima
+def add_random_noise_to_angle(steering_angle):
+    return steering_angle + random.uniform(-1, 1) * ANGLE_NOISE_MAX
+
 def choose_image_and_adjust_angle(center_img_loc, left_img_loc, right_img_loc, steering_angle):
     which_image = random.randint(0, 2)
     image_loc = center_img_loc
@@ -63,6 +70,7 @@ def process_line(line):
     left_img_loc = items[1]
     right_img_loc = items[2]
     steering_angle = float(items[3])
+    steering_angle = add_random_noise_to_angle(steering_angle)
     return choose_image_and_adjust_angle(center_img_loc, left_img_loc, right_img_loc, steering_angle)
 
 def process_img(image_array, add_dimension=True):
