@@ -16,6 +16,7 @@ import gc
 # import ipdb
 import matplotlib.pyplot as plt
 import random
+import argparse
 
 #Pre processing variables
 BRIGHTNESS_RANGE = 10
@@ -75,31 +76,32 @@ def process_img(image_array, add_dimension=True):
     #image_array = image_array[:, :, None]
     return image_array, image_array_flipped
 
-def generate_arrays_from_file(path):
-    # f = open(path)
-    # while 1:
-    #     images = []
-    #     angles = []
-    #     current = 0
-    #     for line in f:
-    #         current += 1
-    #         center_img, steering_angle = process_line(line)
-    #         images.append(center_img)
-    #         angles.append(steering_angle)
-    #         if(current >= batch_size):
-    #             shuffle(images)
-    #             shuffle(angles)
-    #             yield (images, angles)
-    #             current = 0
-    #             images = []
-    #             angles = []
-    #     f.close()
+def generate_arrays_from_file(path, use_batches=False, batch_size=10):
+    f = open(path)
     while 1:
-        f = open(path)
-        for line in f:
-            center_img, steering_angle = process_line(line)
-            yield (center_img, steering_angle)
+        if(use_batches):
+            images = []
+            angles = []
+            current = 0
+            for line in f:
+                current += 1
+                center_img, steering_angle = process_line(line)
+                images.append(center_img)
+                angles.append(steering_angle)
+                if(current >= batch_size):
+                    shuffle(images)
+                    shuffle(angles)
+                    yield (images, angles)
+                    current = 0
+                    images = []
+                    angles = []
+            f.close()
+        else:
+            for line in f:
+                center_img, steering_angle = process_line(line)
+                yield (center_img, steering_angle)
         f.close()
+        
 
 def get_lists_from_file(path):
     f = open(path)
@@ -135,39 +137,49 @@ def generate_arrays_from_lists(training_list):
             yield(flipped_transformed_image_array, np.array([float(steering_angle) * -1.0]))
             yield(transformed_image_array, np.array([float(steering_angle)]))
 
-def createModel():
-    #Create CNN based on NVIDIA paper (http://images.nvidia.com/content/tegra/automotive/images/2016/solutions/pdf/end-to-end-dl-using-px.pdf)
-    # model = Sequential()
-    # #Add lambda function to avoid pre-processing outside of network
-    # model.add(Lambda(lambda x: x/127.5 - 1., input_shape=(80, 160, 3),
-    #         output_shape=(80, 160, 3)))
-    # # model.add(Reshape((66, 200, 3), input_shape=(160, 320, 3)))
-    # #Deviates from NVIDIA paper
-    # model.add(Conv2D(3, 5, 5, input_shape=(80, 160, 3), subsample=(2, 2), activation='relu'))
-    # # model.add(BatchNormalization())
-    # # model.add(Conv2D(3, 5, 5, input_shape=(80, 160, 3), subsample=(2, 2), activation='relu'))
-    # model.add(Conv2D(24, 5, 5, input_shape=(31, 98, 3), subsample=(2, 2), activation='relu'))
-    # model.add(Conv2D(36, 5, 5, input_shape=(5, 22, 3), subsample=(2, 2), activation='relu'))
-    # model.add(Conv2D(48, 3, 3, input_shape=(3, 20, 3), activation='relu'))
-    # model.add(Conv2D(64, 3, 3, input_shape=(1, 18, 3), activation='relu'))
-    # model.add(Flatten())
-    # model.add(Dropout(.2))
-    # model.add(Dense(1164, activation='linear'))
-    # model.add(Dropout(.5))
-    # model.add(Dense(100, activation='linear'))
-    # model.add(Dense(50, activation='linear'))
-    # model.add(Dense(1, activation='linear'))
-    # model.summary()
-    # model.compile(loss='mean_squared_error',
-    #               optimizer='adam',
-    #               metrics=['accuracy'])
+def createNvidiaModel():
+    col, row, ch = INPUT_IMG_WIDTH, INPUT_IMG_HEIGHT, 1  # camera format
 
+    #Create CNN based on NVIDIA paper (http://images.nvidia.com/content/tegra/automotive/images/2016/solutions/pdf/end-to-end-dl-using-px.pdf)
+    model = Sequential()
+    #Add lambda function to avoid pre-processing outside of network
+    model.add(Lambda(lambda x: x/127.5 - 1.,
+        input_shape=(col, row, ch),
+        output_shape=(col, row, ch)))
+    # model.add(Reshape((66, 200, 3), input_shape=(160, 320, 3)))
+    #Deviates from NVIDIA paper
+    model.add(Conv2D(3, 5, 5, input_shape=(80, 160, 3), subsample=(2, 2), activation='relu'))
+    # model.add(BatchNormalization())
+    # model.add(Conv2D(3, 5, 5, input_shape=(80, 160, 3), subsample=(2, 2), activation='relu'))
+    model.add(Conv2D(24, 5, 5, input_shape=(31, 98, 3), subsample=(2, 2), activation='relu'))
+    model.add(Conv2D(36, 5, 5, input_shape=(5, 22, 3), subsample=(2, 2), activation='relu'))
+    model.add(Conv2D(48, 3, 3, input_shape=(3, 20, 3), activation='relu'))
+    model.add(Conv2D(64, 3, 3, input_shape=(1, 18, 3), activation='relu'))
+    model.add(Flatten())
+    model.add(Dropout(.2))
+    model.add(Dense(1164, activation='linear'))
+    model.add(Dropout(.5))
+    model.add(Dense(100, activation='linear'))
+    model.add(Dense(50, activation='linear'))
+    model.add(Dense(1, activation='linear'))
+    model.summary()
+    model.compile(loss='mean_squared_error',
+                  optimizer='adam',
+                  metrics=['accuracy'])
+
+    # Save model to json file
+    json_string = model.to_json()
+    with open('model.json','w') as f:
+            json.dump(json_string,f)
+    return model
+
+def createOldModel():
     col, row, ch = INPUT_IMG_WIDTH, INPUT_IMG_HEIGHT, 1  # camera format
 
     model = Sequential()
     model.add(Lambda(lambda x: x/127.5 - 1.,
-            input_shape=(col, row, ch),
-            output_shape=(col, row, ch)))
+        input_shape=(col, row, ch),
+        output_shape=(col, row, ch)))
     model.add(Convolution2D(16, 8, 8, subsample=(4, 4), border_mode="same"))
     model.add(ELU())
     model.add(Convolution2D(32, 5, 5, subsample=(2, 2), border_mode="same"))
@@ -190,8 +202,8 @@ def createModel():
     return model
 
 
-def initialize(training_type="full"):
-    model = createModel()
+def initialize(training_type="test_with_3"):
+    model = createNvidiaModel()
     if(training_type == "full"):
         training_list = get_list_from_file('data/driving_log.csv')
         np.random.shuffle(training_list)
@@ -230,6 +242,10 @@ def initialize(training_type="full"):
     return model
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Training driving model')
+    parser.add_argument('training_mode', type=str,
+    help='Training mode type (test_with_3, full, full_with_less_zeros, test_from_less_zeros)')
+    args = parser.parse_args()
     gc.collect()
-    initialize("full_with_less_zeros")
+    initialize(args.training_mode)
 #TODO implement transfer learning from previous successful models
