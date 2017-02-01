@@ -51,11 +51,9 @@ def choose_image_and_adjust_angle(center_img_loc, left_img_loc, right_img_loc, s
     if(which_image == 1):
         image_loc = left_img_loc
         steering_angle += ANGLE_ADJUSTMENT
-        print('chose left with angle: ', steering_angle)
     elif(which_image == 2):
         image_loc = right_img_loc
         steering_angle -= ANGLE_ADJUSTMENT
-        print('chose right with angle: ', steering_angle)
     return image_loc, steering_angle
 
 def process_line(line):
