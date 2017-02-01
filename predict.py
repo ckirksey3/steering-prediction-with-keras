@@ -20,7 +20,7 @@ from model import process_img
 from model import initialize
 from model import get_list_from_file
 from model import image_pre_processing
-from image_processing_test import display_processed_img
+from data_analysis import display_processed_img
 
 # Fix error with Keras and TensorFlow
 import tensorflow as tf

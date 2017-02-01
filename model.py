@@ -14,7 +14,6 @@ from matplotlib import pyplot as plt
 import cv2
 import gc
 # import ipdb
-import matplotlib.pyplot as plt
 import random
 import argparse
 
@@ -84,6 +83,13 @@ def process_img(image_array, add_dimension=True):
     #image_array = image_array[:, :, None]
     return image_array, image_array_flipped
 
+# Returns true if the angle is far enough away from zero using partially random threshold gets higher as training continues
+# Adopted from Mohan Karthik's article (https://medium.com/@mohankarthik/cloning-a-car-to-mimic-human-driving-5c2f7e8d8aff#.304ci98i2)
+def is_far_from_zero(angle, epoch):
+    bias = 1. / (epoch + 1.)
+    threshold = np.random.uniform()
+    return ((abs(angle) + bias) > threshold)
+
 def generate_arrays_from_file(path, use_batches=False, batch_size=10):
     f = open(path)
     while 1:
@@ -132,18 +138,21 @@ def get_list_from_file(path):
         training_list.append({'center_img': center_img, 'steering_angle': steering_angle})
     return training_list
 
-def generate_arrays_from_lists(training_list):
+def generate_arrays_from_lists(training_list, sample_size):
+    i = 0
     while 1:
         for dataPoint in training_list:
+            i += 1
+            epoch = i/sample_size
             center_img_loc = dataPoint['center_img']
             steering_angle = dataPoint['steering_angle']
-            image = Image.open(center_img_loc)
-            image_array = np.asarray(image)
-            
-            # ipdb.set_trace()
-            transformed_image_array, flipped_transformed_image_array = process_img(image_array)
-            yield(flipped_transformed_image_array, np.array([float(steering_angle) * -1.0]))
-            yield(transformed_image_array, np.array([float(steering_angle)]))
+            if(is_far_from_zero(steering_angle, epoch)):
+                image = Image.open(center_img_loc)
+                image_array = np.asarray(image)
+                
+                transformed_image_array, flipped_transformed_image_array = process_img(image_array)
+                yield(flipped_transformed_image_array, np.array([float(steering_angle) * -1.0]))
+                yield(transformed_image_array, np.array([float(steering_angle)]))
 
 def createNvidiaModel():
     col, row, ch = INPUT_IMG_WIDTH, INPUT_IMG_HEIGHT, 1  # camera format
@@ -215,19 +224,32 @@ def initialize(training_type="test_with_3"):
     if(training_type == "full"):
         training_list = get_list_from_file('data/driving_log.csv')
         np.random.shuffle(training_list)
-        history = model.fit_generator(generate_arrays_from_lists(training_list),
-            samples_per_epoch=1000, nb_epoch=30)
-    if(training_type == "full_with_less_zeros"):
+        list_length = len(training_list)
+        history = model.fit_generator(generate_arrays_from_lists(training_list, list_length),
+            samples_per_epoch=list_length, nb_epoch=30)
+    elif(training_type == "full_with_less_zeros"):
         training_list = get_list_from_file('data/driving_log_less_zeros.csv')
         list_length = len(training_list)
         np.random.shuffle(training_list)
-        history = model.fit_generator(generate_arrays_from_lists(training_list),
+        history = model.fit_generator(generate_arrays_from_lists(training_list, list_length),
             samples_per_epoch=list_length, nb_epoch=30)
-    if(training_type == "test_from_less_zeros"):
-        training_list = get_list_from_file('data/driving_log_less_zeros.csv')
+    elif(training_type == "test_full"):
+        training_list = get_list_from_file('data/driving_log.csv')
         np.random.shuffle(training_list)
-        history = model.fit_generator(generate_arrays_from_lists(training_list),
+        list_length = len(training_list)
+        history = model.fit_generator(generate_arrays_from_lists(training_list, list_length),
             samples_per_epoch=12, nb_epoch=30)
+        plt.plot(history.history['loss'])
+        plt.title('model loss')
+        plt.ylabel('loss')
+        plt.xlabel('epoch')
+        plt.show()
+    elif(training_type == "test_with_3_generator"):
+        training_list = get_list_from_file('test_driving_log.csv')
+        np.random.shuffle(training_list)
+        sample_size = len(training_list) * 10
+        history = model.fit_generator(generate_arrays_from_lists(training_list, sample_size),
+            samples_per_epoch=sample_size, nb_epoch=30)
         plt.plot(history.history['loss'])
         plt.title('model loss')
         plt.ylabel('loss')
