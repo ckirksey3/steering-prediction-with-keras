@@ -20,4 +20,12 @@ The model uses an Adam optimizer to minimize the means squared error between it'
 ## Training Data
 The bulk of my time for this project was spent on data processing. Initially I recorded some of my own data, but vastly underestimated how much data I needed. Any training that I did resulted in my model outputting a constant steering angle since I didn't have enough situations for the model to recognize patterns. The model was basically just averaging the input angles.
 
-Eventually Udacity released their own larger dataset so I trained on that, but my model still gave a constant output.
+Eventually Udacity released their own larger dataset so I trained on that, but my model still gave a constant output. After talking this over with several classmates, I realized that this was largely caused by the overwhelming presence of near 0 degree steering angles in the data set. I decided to do some analysis on my dataset to see how different techniques could impact this issue.
+
+![Original](data_analysis/original_angle_dist.png?raw=true "Data Analysis")
+
+![Axis Flipping](data_analysis/original_with_axis_flip.png?raw=true "Data Analysis")
+
+![Camera Switching](data_analysis/camera_switching_added.png?raw=true "Data Analysis")
+
+![Zero Penalizing](data_analysis/everything_with_zero_penalizing.png?raw=true "Data Analysis")
