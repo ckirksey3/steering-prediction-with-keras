@@ -1,10 +1,6 @@
 # CarND-BehavioralCloning
 Behavioral Cloning with Self-Driving Cars (Udacity Nanodegree)
-fdsfaasdf
-provides sufficient details of the characteristics and qualities of the architecture, such as the type of model used, the number of layers, the size of each layer. Visualizations emphasizing particular qualities of the architecture are encouraged.
-
-Is the creation of the training dataset and training process documented?
-how the model was trained and what the characteristics of the dataset are. Information such as how the dataset was generated and examples of images from the dataset should be includedf
+For this project, I created a convolutional neural network using the Keras Sequential model to predict the appropriate steering angle for staying on the track in a driving simulator. The model was trained on images and steering angles taken from driving in the simulator with some simple image preprocessing and the desampling of data points with near-zero steering angles to emphasize turning.
 
 ## Model Architecture Design
 My design process began by reading the [End to End Deep Learning with Self-Driving Cars paper](http://images.nvidia.com/content/tegra/automotive/images/2016/solutions/pdf/end-to-end-dl-using-px.pdf) by NVIDIA. 
