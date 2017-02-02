@@ -38,10 +38,10 @@ def image_pre_processing(img):
     # img[:, :, 2] = img[:, :, 2] * brightness
 
     # Convert to grayscale
-    processed = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    # processed = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
 
     # Crop off top and bottom  of image to focus on road
-    processed = processed[60:140, 0:320]
+    processed = img[60:140, 0:320]
 
     # Resize image
     processed = scipy.misc.imresize(processed, (INPUT_IMG_WIDTH, INPUT_IMG_HEIGHT))
