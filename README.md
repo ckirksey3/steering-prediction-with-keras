@@ -45,3 +45,7 @@ In addition to techniques for improving the angle distribution, I also experimen
 Although I originally converted all images to grayscale, I later removed this step as my model was having difficulty distinguishing the paved road from the dirt shortcut when the lane markers were removed. Finally, I resized the image to be smaller and square for quicker processing by the CNN.
 
 ![Cropped Screenshot](data_analysis/compressed.png?raw=true "Preprocessing")
+
+## Result
+It turns!
+[![DRIVING VIDEO](https://img.youtube.com/vi/vm2fFU0PTaU/0.jpg)](https://www.youtube.com/watch?v=vm2fFU0PTaU&feature=youtu.be)
