@@ -1,5 +1,4 @@
 # CarND-BehavioralCloning
-Behavioral Cloning with Self-Driving Cars (Udacity Nanodegree)
 For this project, I created a convolutional neural network using the Keras Sequential model to predict the appropriate steering angle for staying on the track in a driving simulator. The model was trained on images and steering angles taken from driving in the simulator with some simple image preprocessing and the desampling of data points with near-zero steering angles to emphasize turning.
 
 ## Model Architecture Design
