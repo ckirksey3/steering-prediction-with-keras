@@ -24,20 +24,26 @@ Eventually Udacity released their own larger dataset so I trained on that, but m
 
 ### Unprocessed Angle Distribution
 ![Original](data_analysis/original_angle_dist.png?raw=true "Data Analysis")
+
 After graphing a histogram of the angle distribution in my dataset, it was immediately obvious that there were far too many near-zero values in my dataset. My model was just giving a near-zero constant output for every image since this strategy would actually help it mimize the means squared error of the output as nearly every recorded angle was near zero.
 
 ### Axis Flipping
 ![Axis Flipping](data_analysis/original_with_axis_flip.png?raw=true "Data Analysis")
+
 My first image processing technique was to flip the image along the y-axis and then reverse the steering angle. This doubled my training set and ensured an even distribution of positive and negative steering angles. 
 
 ### Camera Switching
 ![Camera Switching](data_analysis/camera_switching_added.png?raw=true "Data Analysis")
+
 Prior to this, I had been using the center camera images for all of my training. In this step, I began randomly selecting the left, right, or center image and adding a small adjustment to the steering angle for any non-center image. This helped reduce the number of absolute zero angles and provide more variability between epochs of training.
 
 ### Zero Penalizing
 ![Zero Penalizing](data_analysis/everything_with_zero_penalizing.png?raw=true "Data Analysis")
+
 The primary processing technique that helped me get a working model was to progressively reduce the number of training points with near zero steering angles. Mohan Karthik explained this process in his [Medium post](https://medium.com/@mohankarthik/cloning-a-car-to-mimic-human-driving-5c2f7e8d8aff#.304ci98i2) about the project. 
 
 ### Image Preprocessing
 In addition to techniques for improving the angle distribution, I also experimented with different preprocessing techniques to aid in feature extraction. One that seemed to be particularly helpful was cropping some of the top and bottom of the image to reduce the visual noise and focus the model on the road curvature
 ![Cropped Screenshot](data_analysis/cropped.jpg?raw=true "Preprocessing")
+
+Although I originally converted all images to grayscale, I later removed this step as my model was having difficulty distinguishing the paved road from the dirt shortcut when the lane markers were removed.
