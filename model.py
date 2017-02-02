@@ -23,6 +23,7 @@ BRIGHTNESS_RANGE = 10
 # Model dimensions
 INPUT_IMG_WIDTH = 64
 INPUT_IMG_HEIGHT = 64
+INPUT_CHANNELS = 3
 
 # Angle to adjust by when switching to left/right img
 ANGLE_ADJUSTMENT = 0.15
@@ -77,7 +78,7 @@ def process_img(image_array, add_dimension=True):
     if(add_dimension):
         image_array = image_array[None, :, :, None]
     else:
-        image_array = image_array[:, :, None]
+        image_array = image_array[:, :, :]
     image_array_flipped = np.fliplr(image_array)
     # change to this when sending to model.fit
     #image_array = image_array[:, :, None]
@@ -150,12 +151,12 @@ def generate_arrays_from_lists(training_list, sample_size):
                 image = Image.open(center_img_loc)
                 image_array = np.asarray(image)
                 
-                transformed_image_array, flipped_transformed_image_array = process_img(image_array)
+                transformed_image_array, flipped_transformed_image_array = process_img(image_array, add_dimension=False)
                 yield(flipped_transformed_image_array, np.array([float(steering_angle) * -1.0]))
                 yield(transformed_image_array, np.array([float(steering_angle)]))
 
 def createNvidiaModel():
-    col, row, ch = INPUT_IMG_WIDTH, INPUT_IMG_HEIGHT, 1  # camera format
+    col, row, ch = INPUT_IMG_WIDTH, INPUT_IMG_HEIGHT, INPUT_CHANNELS  # camera format
 
     #Create CNN based on NVIDIA paper (http://images.nvidia.com/content/tegra/automotive/images/2016/solutions/pdf/end-to-end-dl-using-px.pdf)
     model = Sequential()
