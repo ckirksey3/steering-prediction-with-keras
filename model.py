@@ -78,7 +78,7 @@ def process_img(image_array, add_dimension=True):
     if(add_dimension):
         image_array = image_array[None, :, :, None]
     else:
-        image_array = image_array[:, :, :]
+        image_array = image_array[None, :, :, :]
     image_array_flipped = np.fliplr(image_array)
     # change to this when sending to model.fit
     #image_array = image_array[:, :, None]
