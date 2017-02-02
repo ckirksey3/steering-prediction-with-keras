@@ -73,7 +73,7 @@ def process_line(line):
     steering_angle = add_random_noise_to_angle(steering_angle)
     return choose_image_and_adjust_angle(center_img_loc, left_img_loc, right_img_loc, steering_angle)
 
-def process_img(image_array, add_dimension=True):
+def process_img(image_array, add_dimension=False):
     image_array = image_pre_processing(image_array)
     if(add_dimension):
         image_array = image_array[None, :, :, None]
