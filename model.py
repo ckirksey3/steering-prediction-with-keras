@@ -221,7 +221,7 @@ def createOldModel():
     return model
 
 
-def initialize(training_type, model=createNvidiaModel(), plot=False, validation_split=0.5):
+def initialize(training_type, model=createNvidiaModel(), plot=False, validation_split=0.8):
     if(training_type == "test_with_3"):
         img_list, angle_list = get_lists_from_file('test_driving_log.csv')
         history =model.fit(np.array(img_list), np.array(angle_list),
