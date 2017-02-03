@@ -16,6 +16,7 @@ import gc
 # import ipdb
 import random
 import argparse
+import pickle
 
 #Pre processing variables
 BRIGHTNESS_RANGE = 10
@@ -220,43 +221,8 @@ def createOldModel():
     return model
 
 
-def initialize(training_type="test_with_3"):
-    model = createNvidiaModel()
-    if(training_type == "full"):
-        training_list = get_list_from_file('data/driving_log.csv')
-        np.random.shuffle(training_list)
-        list_length = len(training_list)
-        history = model.fit_generator(generate_arrays_from_lists(training_list, list_length),
-            samples_per_epoch=list_length, nb_epoch=30)
-    elif(training_type == "full_with_less_zeros"):
-        training_list = get_list_from_file('data/driving_log_less_zeros.csv')
-        list_length = len(training_list)
-        np.random.shuffle(training_list)
-        history = model.fit_generator(generate_arrays_from_lists(training_list, list_length),
-            samples_per_epoch=list_length, nb_epoch=30)
-    elif(training_type == "test_full"):
-        training_list = get_list_from_file('data/driving_log.csv')
-        np.random.shuffle(training_list)
-        list_length = len(training_list)
-        history = model.fit_generator(generate_arrays_from_lists(training_list, list_length),
-            samples_per_epoch=12, nb_epoch=30)
-        plt.plot(history.history['loss'])
-        plt.title('model loss')
-        plt.ylabel('loss')
-        plt.xlabel('epoch')
-        plt.show()
-    elif(training_type == "test_with_3_generator"):
-        training_list = get_list_from_file('test_driving_log.csv')
-        np.random.shuffle(training_list)
-        sample_size = len(training_list) * 10
-        history = model.fit_generator(generate_arrays_from_lists(training_list, sample_size),
-            samples_per_epoch=sample_size, nb_epoch=30)
-        plt.plot(history.history['loss'])
-        plt.title('model loss')
-        plt.ylabel('loss')
-        plt.xlabel('epoch')
-        plt.show()
-    elif(training_type == "test_with_3"):
+def initialize(training_type, model=createNvidiaModel(), plot=False, validation_split=0.5):
+    if(training_type == "test_with_3"):
         img_list, angle_list = get_lists_from_file('test_driving_log.csv')
         history =model.fit(np.array(img_list), np.array(angle_list),
             batch_size=12, nb_epoch=50, validation_split=0.5, shuffle=True)
@@ -269,14 +235,63 @@ def initialize(training_type="test_with_3"):
         plt.xlabel('epoch')
         plt.legend(['train', 'test'], loc='upper left')
         plt.show()
-    model.save_weights("model.h5")
-    return model
+        model.save_weights("model.h5")
+        return model
+    else:
+        training_list = []
+        if(training_type == "full"):
+            training_list = get_list_from_file('data/driving_log.csv')
+        elif(training_type == "full_with_less_zeros"):
+            training_list = get_list_from_file('data/driving_log_less_zeros.csv')
+        elif(training_type == "test_with_3_generator"):
+            training_list = get_list_from_file('test_driving_log.csv')
+
+        list_length = len(training_list)
+
+        np.random.shuffle(training_list)
+        train_generator = generate_arrays_from_lists(training_list, list_length)
+
+        np.random.shuffle(training_list)
+        validation_generator = generate_arrays_from_lists(training_list, list_length)
+
+        nb_train_samples = int(list_length * validation_split)
+        nb_val_samples = list_length - nb_train_samples
+
+        history = model.fit_generator(train_generator, samples_per_epoch=list_length, nb_epoch=30, validation_data=validation_generator, nb_val_samples=nb_val_samples)
+        
+        # Save history and weights
+        pickle.dump(history.history, open('history.p', 'wb'))
+        model.save_weights("model.h5")
+
+        # Plot loss
+        plt.plot(history.history['loss'])
+        plt.plot(history.history['val_loss'])
+        plt.title('model loss')
+        plt.ylabel('loss')
+        plt.xlabel('epoch')
+        plt.legend(['train', 'validation'], loc='upper left')
+        plt.show()
+        return model
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Training driving model')
     parser.add_argument('training_mode', type=str,
-    help='Training mode type (test_with_3, full, full_with_less_zeros, test_from_less_zeros)')
+        help='Training mode type (test_with_3, full, full_with_less_zeros, test_from_less_zeros)')
+    parser.add_argument('plot', type=str, nargs='?', default=False,
+        help='Whether to display plot of loss after training.')
+    parser.add_argument('model', type=str, nargs='?', default=None,
+        help='Path to model definition json. Model weights should be on the same path.')
     args = parser.parse_args()
     gc.collect()
-    initialize(args.training_mode)
+
+    if args.model is not None:
+        with open(args.model, 'r') as jfile:
+            model = model_from_json(json.load(jfile))
+            model.compile("adam", "mse")
+            weights_file = args.model.replace('json', 'h5')
+            model.load_weights(weights_file)
+            initialize(args.training_mode, model, args.plot)
+    else:
+        initialize(args.training_mode)
+    
 #TODO implement transfer learning from previous successful models
