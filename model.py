@@ -271,10 +271,10 @@ def initialize(training_type, model=createNvidiaModel(), plot=False, validation_
 
         # Adjust sample size to account for horizontal flipping in image processing
         sample_size = list_length * 2
-        train_generator = generate_arrays_from_lists(training_list, sample_size, batch_size=10)
+        train_generator = generate_arrays_from_lists(training_list, sample_size, batch_size=30)
 
         np.random.shuffle(training_list)
-        validation_generator = generate_arrays_from_lists(training_list, sample_size, batch_size=10)
+        validation_generator = generate_arrays_from_lists(training_list, sample_size, batch_size=30)
 
         nb_train_samples = int(list_length * validation_split)
         nb_val_samples = list_length - nb_train_samples
