@@ -65,7 +65,7 @@ def simulate_penelize_zeros(angle_list):
 
 def display_angle_distribution():
     print("Processing file..")
-    img_list, angle_list = get_lists_from_file('data/driving_log.csv')
+    img_list, angle_list = get_lists_from_file('data/2.1_recording/driving_log.csv')
     # img_list, angle_list = get_lists_from_file('data/driving_log_less_zeros.csv')
     # img_list, angle_list = get_lists_from_file('test_driving_log.csv')
     print("Finished")
@@ -73,7 +73,7 @@ def display_angle_distribution():
     angle_list = simulate_axis_flip(angle_list)
     angle_list = simulate_image_shifting(angle_list)
     angle_list = simulate_penelize_zeros(angle_list)
-    plt.hist(angle_list)
+    plt.hist(angle_list, bins="auto")
     plt.title("Angle Distribution")
     plt.xlabel("Value")
     plt.ylabel("Frequency")
@@ -82,4 +82,5 @@ def display_angle_distribution():
     # plot_url = py.plot_mpl(fig, filename='mpl-basic-histogram')
 
 if __name__ == '__main__':
-    display_processed_img("IMG/center_2016_12_01_13_31_15_005.jpg")
+    display_angle_distribution()
+    # display_processed_img("IMG/center_2016_12_01_13_31_15_005.jpg")

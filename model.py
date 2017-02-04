@@ -246,6 +246,11 @@ def initialize(training_type, model=createNvidiaModel(), plot=False, validation_
         elif(training_type == "test_with_3_generator"):
             training_list = get_list_from_file('test_driving_log.csv')
 
+        # Set aside some data for a test set
+        test_split_marker = int(len(training_list)*0.1)
+        test_list = training_list[:test_split_marker]
+
+        training_list = training_list[test_split_marker:]
         list_length = len(training_list)
 
         np.random.shuffle(training_list)
