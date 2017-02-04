@@ -1,0 +1,10 @@
+IMG/
+__pycache__/
+data/
+data_analysis/driving.mov
+driving_log.csv
+history.p
+resources/
+test_driving_log.csv
+model.h5
+model.json
