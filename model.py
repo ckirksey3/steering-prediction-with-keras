@@ -77,9 +77,9 @@ def process_line(line):
 def process_img(image_array, add_dimension=False):
     image_array = image_pre_processing(image_array)
     if(add_dimension):
-        image_array = image_array[None, :, :, None]
+        image_array = image_array[:, :, None]
     else:
-        image_array = image_array[None, :, :, :]
+        image_array = image_array[:, :, :]
     image_array_flipped = np.fliplr(image_array)
     # change to this when sending to model.fit
     #image_array = image_array[:, :, None]
@@ -140,11 +140,14 @@ def get_list_from_file(path):
         training_list.append({'center_img': center_img, 'steering_angle': steering_angle})
     return training_list
 
-def generate_arrays_from_lists(training_list, sample_size):
+def generate_arrays_from_lists(training_list, sample_size, batch_size=1):
+
     i = 0
+    image_list = []
+    angle_list = []
     while 1:
         for dataPoint in training_list:
-            i += 1
+            i += 2
             epoch = i/sample_size
             center_img_loc = dataPoint['center_img']
             steering_angle = dataPoint['steering_angle']
@@ -153,8 +156,19 @@ def generate_arrays_from_lists(training_list, sample_size):
                 image_array = np.asarray(image)
                 
                 transformed_image_array, flipped_transformed_image_array = process_img(image_array, add_dimension=False)
-                yield(flipped_transformed_image_array, np.array([float(steering_angle) * -1.0]))
-                yield(transformed_image_array, np.array([float(steering_angle)]))
+
+                # Add original
+                image_list.append(transformed_image_array)
+                angle_list.append(float(steering_angle))
+
+                # Add Flipped
+                image_list.append(flipped_transformed_image_array)
+                angle_list.append(float(steering_angle) * -1.0)
+
+                if(len(image_list) >= batch_size):
+                    yield(np.array(image_list), np.array(angle_list))
+                    image_list = []
+                    angle_list = []
 
 def createNvidiaModel():
     col, row, ch = INPUT_IMG_WIDTH, INPUT_IMG_HEIGHT, INPUT_CHANNELS  # camera format
@@ -254,15 +268,18 @@ def initialize(training_type, model=createNvidiaModel(), plot=False, validation_
         list_length = len(training_list)
 
         np.random.shuffle(training_list)
-        train_generator = generate_arrays_from_lists(training_list, list_length)
+
+        # Adjust sample size to account for horizontal flipping in image processing
+        sample_size = list_length * 2
+        train_generator = generate_arrays_from_lists(training_list, sample_size, batch_size=10)
 
         np.random.shuffle(training_list)
-        validation_generator = generate_arrays_from_lists(training_list, list_length)
+        validation_generator = generate_arrays_from_lists(training_list, sample_size, batch_size=10)
 
         nb_train_samples = int(list_length * validation_split)
         nb_val_samples = list_length - nb_train_samples
 
-        history = model.fit_generator(train_generator, samples_per_epoch=list_length, nb_epoch=30, validation_data=validation_generator, nb_val_samples=nb_val_samples)
+        history = model.fit_generator(train_generator, samples_per_epoch=sample_size, nb_epoch=30, validation_data=validation_generator, nb_val_samples=nb_val_samples)
         
         # Save history and weights
         pickle.dump(history.history, open('history.p', 'wb'))
