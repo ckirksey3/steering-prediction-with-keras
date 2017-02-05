@@ -2,6 +2,7 @@ from model import process_img
 from model import generate_arrays_from_lists
 from model import get_lists_from_file
 from model import image_pre_processing
+from model import trans_image
 from PIL import Image
 import numpy as np
 import matplotlib.pyplot as plt
@@ -12,6 +13,9 @@ def display_processed_img(image_loc):
     image = Image.open(image_loc)
     image_array = np.asarray(image)
 
+    image_width = image.size[0]
+    shift_range = int(image_width * 0.2)
+    image_array, steering_angle = trans_image(image_array, 0.0, trans_range=shift_range)
     image_array = image_pre_processing(image_array)
     image = Image.fromarray(np.uint8(image_array))
     image.show()

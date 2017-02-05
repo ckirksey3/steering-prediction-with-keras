@@ -32,7 +32,34 @@ ANGLE_ADJUSTMENT = 0.25
 # Range of noise to add to steering angle
 ANGLE_NOISE_MAX = 0.05
 
+# Random shadow
+# Created by Vivek Yadav (https://chatbotslife.com/using-augmentation-to-mimic-human-driving-496b569760a9#.fwuosa9qd)
+def add_random_shadow(image):
+    top_y = 320*np.random.uniform()
+    top_x = 0
+    bot_x = 160
+    bot_y = 320*np.random.uniform()
+    image_hls = cv2.cvtColor(image,cv2.COLOR_RGB2HLS)
+    shadow_mask = 0*image_hls[:,:,1]
+    X_m = np.mgrid[0:image.shape[0],0:image.shape[1]][0]
+    Y_m = np.mgrid[0:image.shape[0],0:image.shape[1]][1]
+    shadow_mask[((X_m-top_x)*(bot_y-top_y) -(bot_x - top_x)*(Y_m-top_y) >=0)]=1
+    random_bright = .25+.7*np.random.uniform()
+    if np.random.randint(2)==1:
+        # random_bright = .5
+        cond1 = shadow_mask==1
+        cond0 = shadow_mask==0
+        if np.random.randint(2)==1:
+            image_hls[:,:,1][cond1] = image_hls[:,:,1][cond1]*random_bright
+        else:
+            image_hls[:,:,1][cond0] = image_hls[:,:,1][cond0]*random_bright    
+    image = cv2.cvtColor(image_hls,cv2.COLOR_HLS2RGB)
+    return image
+
 def image_pre_processing(img):
+    #Add random shadow
+    img = add_random_shadow(img)
+
     # Add random brightness
     # Borrowed from Mohan Karthik's post (https://medium.com/@mohankarthik/cloning-a-car-to-mimic-human-driving-5c2f7e8d8aff)
     img = cv2.cvtColor(img,cv2.COLOR_RGB2HSV)
@@ -115,7 +142,16 @@ def generate_arrays_from_file(path, use_batches=False, batch_size=10):
                 center_img, steering_angle = process_line(line)
                 yield (center_img, steering_angle)
         f.close()
-        
+
+# Image shifts
+# Created by Vivek Yadav (https://chatbotslife.com/using-augmentation-to-mimic-human-driving-496b569760a9#.fwuosa9qd)
+def trans_image(image,steer,trans_range):
+    tr_x = trans_range*np.random.uniform()-trans_range/2
+    steer_ang = steer + tr_x/trans_range*2*.2
+    tr_y = 40*np.random.uniform()-40/2
+    Trans_M = np.float32([[1,0,tr_x],[0,1,tr_y]])
+    image_tr = cv2.warpAffine(image,Trans_M,(image.shape[1], image.shape[0]))
+    return image_tr,steer_ang        
 
 def get_lists_from_file(path):
     f = open(path)
@@ -125,6 +161,9 @@ def get_lists_from_file(path):
         img_loc, steering_angle = process_line(line)
         image = Image.open(img_loc)
         image_array = np.asarray(image)
+        image_width = image.size[0]
+        shift_range = 0
+        # image_array, steering_angle = trans_image(image_array, steering_angle, trans_range=shift_range)
         transformed_image_array, flipped_transformed_image_array = process_img(image_array, add_dimension=False)
         img_list.append(transformed_image_array)
         angle_list.append(steering_angle)
