@@ -82,5 +82,6 @@ def display_angle_distribution():
     # plot_url = py.plot_mpl(fig, filename='mpl-basic-histogram')
 
 if __name__ == '__main__':
-    display_angle_distribution()
-    # display_processed_img("IMG/center_2016_12_01_13_31_15_005.jpg")
+    # display_angle_distribution()
+    for i in range(5):
+        display_processed_img("IMG/center_2016_12_01_13_31_15_005.jpg")

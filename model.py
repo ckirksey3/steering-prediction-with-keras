@@ -27,7 +27,7 @@ INPUT_IMG_HEIGHT = 64
 INPUT_CHANNELS = 3
 
 # Angle to adjust by when switching to left/right img
-ANGLE_ADJUSTMENT = 0.15
+ANGLE_ADJUSTMENT = 0.25
 
 # Range of noise to add to steering angle
 ANGLE_NOISE_MAX = 0.05
@@ -35,12 +35,10 @@ ANGLE_NOISE_MAX = 0.05
 def image_pre_processing(img):
     # Add random brightness
     # Borrowed from Mohan Karthik's post (https://medium.com/@mohankarthik/cloning-a-car-to-mimic-human-driving-5c2f7e8d8aff)
-    # img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    # brightness = BRIGHTNESS_RANGE + np.random.uniform()
-    # img[:, :, 2] = img[:, :, 2] * brightness
-
-    # Convert to grayscale
-    # processed = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    img = cv2.cvtColor(img,cv2.COLOR_RGB2HSV)
+    bright = .25+np.random.uniform()
+    img[:,:,2] = img[:,:,2]*bright
+    img = cv2.cvtColor(img,cv2.COLOR_HSV2RGB)
 
     # Crop off top and bottom  of image to focus on road
     processed = img[60:140, 0:320]
@@ -259,6 +257,10 @@ def initialize(training_type, model=createNvidiaModel(), plot=False, validation_
             training_list = get_list_from_file('data/driving_log_less_zeros.csv')
         elif(training_type == "test_with_3_generator"):
             training_list = get_list_from_file('test_driving_log.csv')
+        else:
+            raise ValueError('Invalid training type')
+
+        print("list ln", len(training_list))
 
         # Set aside some data for a test set
         test_split_marker = int(len(training_list)*0.1)
@@ -270,16 +272,19 @@ def initialize(training_type, model=createNvidiaModel(), plot=False, validation_
         np.random.shuffle(training_list)
 
         # Adjust sample size to account for horizontal flipping in image processing
-        sample_size = list_length * 2 * 5
-        train_generator = generate_arrays_from_lists(training_list, sample_size, batch_size=30)
+        sample_size = 10 #list_length * 2 * 5
+        batch_size = 2
+        nb_epoch = 8
+        train_generator = generate_arrays_from_lists(training_list, sample_size, batch_size=batch_size)
 
         np.random.shuffle(training_list)
-        validation_generator = generate_arrays_from_lists(training_list, sample_size, batch_size=30)
+        validation_generator = generate_arrays_from_lists(training_list, sample_size, batch_size=batch_size)
 
         nb_train_samples = int(list_length * validation_split)
+        print("nb_train_samples", nb_train_samples)
         nb_val_samples = list_length - nb_train_samples
-
-        history = model.fit_generator(train_generator, samples_per_epoch=sample_size, nb_epoch=30, validation_data=validation_generator, nb_val_samples=nb_val_samples)
+        print("nb_val_samples", nb_val_samples)
+        history = model.fit_generator(train_generator, samples_per_epoch=sample_size, nb_epoch=nb_epoch, validation_data=validation_generator, nb_val_samples=nb_val_samples)
         
         # Save history and weights
         pickle.dump(history.history, open('history.p', 'wb'))
