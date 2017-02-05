@@ -313,7 +313,7 @@ def initialize(training_type, model=createNvidiaModel(), plot=False, validation_
         # Adjust sample size to account for horizontal flipping in image processing
         sample_size = 20000 #list_length * 2 * 5
         batch_size = 64
-        nb_epoch = 8
+        nb_epoch = 12
         train_generator = generate_arrays_from_lists(training_list, sample_size, batch_size=batch_size)
 
         np.random.shuffle(training_list)
