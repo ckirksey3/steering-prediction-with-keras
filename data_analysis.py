@@ -65,7 +65,7 @@ def simulate_penelize_zeros(angle_list):
 
 def display_angle_distribution():
     print("Processing file..")
-    img_list, angle_list = get_lists_from_file('data/2.1_recording/driving_log.csv')
+    img_list, angle_list = get_lists_from_file('data/2.4_recording_dirt_turn/driving_log.csv')
     # img_list, angle_list = get_lists_from_file('data/driving_log_less_zeros.csv')
     # img_list, angle_list = get_lists_from_file('test_driving_log.csv')
     print("Finished")
