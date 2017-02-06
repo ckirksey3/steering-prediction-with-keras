@@ -36,7 +36,11 @@ ANGLE_NOISE_MAX = 0.05
 MIN_BUCKET_SIZE = 2
 
 # PERCENTAGE OF DATA TO BE USED FOR TRAINING INSTEAD OF VALIDATION
-VALIDATION_SPLIT = 0.8
+VALIDATION_SPLIT = 0.75
+
+BATCH_SIZE = 1024
+SAMPLE_SIZE = 1024 * 32
+NB_EPOCH = 5
 
 # Breaks input into buckets based on steering angle
 def segment_data_by_angles(angles, images):
@@ -87,14 +91,14 @@ def add_random_shadow(image):
 
 def image_pre_processing(img):
     #Add random shadow
-    img = add_random_shadow(img)
+    # img = add_random_shadow(img)
 
     # Add random brightness
     # Borrowed from Mohan Karthik's post (https://medium.com/@mohankarthik/cloning-a-car-to-mimic-human-driving-5c2f7e8d8aff)
-    img = cv2.cvtColor(img,cv2.COLOR_RGB2HSV)
-    bright = .25+np.random.uniform()
-    img[:,:,2] = img[:,:,2]*bright
-    img = cv2.cvtColor(img,cv2.COLOR_HSV2RGB)
+    # img = cv2.cvtColor(img,cv2.COLOR_RGB2HSV)
+    # bright = .25+np.random.uniform()
+    # img[:,:,2] = img[:,:,2]*bright
+    # img = cv2.cvtColor(img,cv2.COLOR_HSV2RGB)
 
     # Crop off top and bottom  of image to focus on road
     processed = img[60:140, 0:320]
@@ -170,7 +174,7 @@ def get_lists_from_file(path):
             angle_list.append(steering_angle)
     return img_list, angle_list
 
-def generate_arrays_from_lists(data_buckets, sample_size, batch_size=1):
+def generate_arrays_from_lists(data_buckets):
     i = 0
     image_list = []
     angle_list = []
@@ -180,12 +184,17 @@ def generate_arrays_from_lists(data_buckets, sample_size, batch_size=1):
             bucket_length = len(training_list)
             dataPoint = training_list[index_within_each_list % bucket_length]
             i += 2
-            epoch = i/sample_size
+            epoch = i/SAMPLE_SIZE
             img_loc = dataPoint['img']
             steering_angle = dataPoint['angle']
             if(is_far_from_zero(steering_angle, epoch)):
                 image = Image.open(img_loc)
                 image_array = np.asarray(image)
+
+                # Add Image shifting
+                image_width = image.size[0]
+                shift_range = int(image_width * 0.1)
+                image_array, steering_angle = trans_image(image_array, 0.0, trans_range=shift_range)
                 
                 transformed_image_array, flipped_transformed_image_array = process_img(image_array, add_dimension=False)
 
@@ -197,7 +206,7 @@ def generate_arrays_from_lists(data_buckets, sample_size, batch_size=1):
                 image_list.append(flipped_transformed_image_array)
                 angle_list.append(float(steering_angle) * -1.0)
 
-                if(len(image_list) >= batch_size):
+                if(len(image_list) >= BATCH_SIZE):
                     yield(np.array(image_list), np.array(angle_list))
                     image_list = []
                     angle_list = []
@@ -222,11 +231,13 @@ def createNvidiaModel():
     model.add(Conv2D(48, 3, 3, input_shape=(3, 20, 3), activation='relu'))
     model.add(Conv2D(64, 3, 3, input_shape=(1, 18, 3), activation='relu'))
     model.add(Flatten())
-    model.add(Dropout(.2))
     model.add(Dense(1164, activation='linear'))
-    model.add(Dropout(.5))
+    model.add(Dropout(.1))
     model.add(Dense(100, activation='linear'))
+    model.add(Dropout(.1))
     model.add(Dense(50, activation='linear'))
+    model.add(Dropout(.1))
+    model.add(Dense(10, activation='linear'))
     model.add(Dense(1, activation='linear'))
     model.summary()
     model.compile(loss='mean_squared_error',
@@ -243,18 +254,14 @@ def initialize(data_buckets, model=None):
         if(model is None):
             model = createNvidiaModel()
 
-        # Adjust sample size to account for horizontal flipping in image processing
-        sample_size = 25000
-        batch_size = 64
-        nb_epoch = 30
-        train_generator = generate_arrays_from_lists(data_buckets, sample_size, batch_size=batch_size)
-        validation_generator = generate_arrays_from_lists(data_buckets, sample_size, batch_size=batch_size)
+        train_generator = generate_arrays_from_lists(data_buckets)
+        validation_generator = generate_arrays_from_lists(data_buckets)
 
-        nb_train_samples = int(sample_size * VALIDATION_SPLIT)
+        nb_train_samples = int(SAMPLE_SIZE * VALIDATION_SPLIT)
         print("nb_train_samples", nb_train_samples)
-        nb_val_samples = sample_size - nb_train_samples
+        nb_val_samples = SAMPLE_SIZE - nb_train_samples
         print("nb_val_samples", nb_val_samples)
-        history = model.fit_generator(train_generator, samples_per_epoch=sample_size, nb_epoch=nb_epoch, validation_data=validation_generator, nb_val_samples=nb_val_samples)
+        history = model.fit_generator(train_generator, samples_per_epoch=SAMPLE_SIZE, nb_epoch=NB_EPOCH, validation_data=validation_generator, nb_val_samples=nb_val_samples)
         
         # Save history and weights
         pickle.dump(history.history, open('history.p', 'wb'))
