@@ -32,6 +32,35 @@ ANGLE_ADJUSTMENT = 0.25
 # Range of noise to add to steering angle
 ANGLE_NOISE_MAX = 0.05
 
+# Min bucket size for steering angle distribution
+MIN_BUCKET_SIZE = 2
+
+# PERCENTAGE OF DATA TO BE USED FOR TRAINING INSTEAD OF VALIDATION
+VALIDATION_SPLIT = 0.8
+
+# Breaks input into buckets based on steering angle
+def segment_data_by_angles(angles, images):
+    counts, bucket_indices = np.histogram(angles, bins='auto')
+    bucket_increment = bucket_indices[1] - bucket_indices[0]
+    bucket_min = bucket_indices[0]
+    buckets = [list() for _ in range(len(counts))]
+    # TODO adjust for flipping images
+    for i in range(len(angles)):
+        img = images[i]
+        angle = angles[i]
+        bucket_index = int((angle - bucket_min)/bucket_increment)
+        bucket_index = min(bucket_index, len(buckets) - 1)
+        bucket_index = max(bucket_index, 0)
+        buckets[bucket_index].append({'img': img, 'angle': angle})
+    merged_buckets = []
+    merged_buckets.append(buckets[0])
+    for i in range(1, len(buckets)):
+        if(len(buckets[i]) < MIN_BUCKET_SIZE):
+            merged_buckets[-1] += buckets[i]
+        else:
+            merged_buckets.append(buckets[i])
+    return merged_buckets
+
 # Random shadow
 # Created by Vivek Yadav (https://chatbotslife.com/using-augmentation-to-mimic-human-driving-496b569760a9#.fwuosa9qd)
 def add_random_shadow(image):
@@ -90,14 +119,16 @@ def choose_image_and_adjust_angle(center_img_loc, left_img_loc, right_img_loc, s
         steering_angle -= ANGLE_ADJUSTMENT
     return image_loc, steering_angle
 
-def process_line(line):
+def process_line(line, direction):
     items = [x.strip() for x in line.split(',')]
-    center_img_loc = items[0]
-    left_img_loc = items[1]
-    right_img_loc = items[2]
+    img_loc = items[direction]
     steering_angle = float(items[3])
     steering_angle = add_random_noise_to_angle(steering_angle)
-    return choose_image_and_adjust_angle(center_img_loc, left_img_loc, right_img_loc, steering_angle)
+    if(direction == 1):
+        steering_angle += ANGLE_ADJUSTMENT
+    elif(direction == 2):
+        steering_angle -= ANGLE_ADJUSTMENT
+    return img_loc, steering_angle
 
 def process_img(image_array, add_dimension=False):
     image_array = image_pre_processing(image_array)
@@ -117,32 +148,6 @@ def is_far_from_zero(angle, epoch):
     threshold = np.random.uniform()
     return ((abs(angle) + bias) > threshold)
 
-def generate_arrays_from_file(path, use_batches=False, batch_size=10):
-    f = open(path)
-    while 1:
-        if(use_batches):
-            images = []
-            angles = []
-            current = 0
-            for line in f:
-                current += 1
-                center_img, steering_angle = process_line(line)
-                images.append(center_img)
-                angles.append(steering_angle)
-                if(current >= batch_size):
-                    shuffle(images)
-                    shuffle(angles)
-                    yield (images, angles)
-                    current = 0
-                    images = []
-                    angles = []
-            f.close()
-        else:
-            for line in f:
-                center_img, steering_angle = process_line(line)
-                yield (center_img, steering_angle)
-        f.close()
-
 # Image shifts
 # Created by Vivek Yadav (https://chatbotslife.com/using-augmentation-to-mimic-human-driving-496b569760a9#.fwuosa9qd)
 def trans_image(image,steer,trans_range):
@@ -153,43 +158,33 @@ def trans_image(image,steer,trans_range):
     image_tr = cv2.warpAffine(image,Trans_M,(image.shape[1], image.shape[0]))
     return image_tr,steer_ang        
 
+
 def get_lists_from_file(path):
     f = open(path)
     img_list = []
     angle_list = []
     for line in f:
-        img_loc, steering_angle = process_line(line)
-        image = Image.open(img_loc)
-        image_array = np.asarray(image)
-        image_width = image.size[0]
-        shift_range = 0
-        # image_array, steering_angle = trans_image(image_array, steering_angle, trans_range=shift_range)
-        transformed_image_array, flipped_transformed_image_array = process_img(image_array, add_dimension=False)
-        img_list.append(transformed_image_array)
-        angle_list.append(steering_angle)
+        for direction in range(2):
+            img_loc, steering_angle = process_line(line, direction)
+            img_list.append(img_loc)
+            angle_list.append(steering_angle)
     return img_list, angle_list
 
-def get_list_from_file(path):
-    f = open(path)
-    training_list = []
-    for line in f:
-        center_img, steering_angle = process_line(line)
-        training_list.append({'center_img': center_img, 'steering_angle': steering_angle})
-    return training_list
-
-def generate_arrays_from_lists(training_list, sample_size, batch_size=1):
-
+def generate_arrays_from_lists(data_buckets, sample_size, batch_size=1):
     i = 0
     image_list = []
     angle_list = []
+    index_within_each_list = 0
     while 1:
-        for dataPoint in training_list:
+        for training_list in data_buckets:
+            bucket_length = len(training_list)
+            dataPoint = training_list[index_within_each_list % bucket_length]
             i += 2
             epoch = i/sample_size
-            center_img_loc = dataPoint['center_img']
-            steering_angle = dataPoint['steering_angle']
+            img_loc = dataPoint['img']
+            steering_angle = dataPoint['angle']
             if(is_far_from_zero(steering_angle, epoch)):
-                image = Image.open(center_img_loc)
+                image = Image.open(img_loc)
                 image_array = np.asarray(image)
                 
                 transformed_image_array, flipped_transformed_image_array = process_img(image_array, add_dimension=False)
@@ -206,6 +201,7 @@ def generate_arrays_from_lists(training_list, sample_size, batch_size=1):
                     yield(np.array(image_list), np.array(angle_list))
                     image_list = []
                     angle_list = []
+        index_within_each_list += 1
 
 def createNvidiaModel():
     col, row, ch = INPUT_IMG_WIDTH, INPUT_IMG_HEIGHT, INPUT_CHANNELS  # camera format
@@ -243,85 +239,20 @@ def createNvidiaModel():
             json.dump(json_string,f)
     return model
 
-def createOldModel():
-    col, row, ch = INPUT_IMG_WIDTH, INPUT_IMG_HEIGHT, 1  # camera format
-
-    model = Sequential()
-    model.add(Lambda(lambda x: x/127.5 - 1.,
-        input_shape=(col, row, ch),
-        output_shape=(col, row, ch)))
-    model.add(Convolution2D(16, 8, 8, subsample=(4, 4), border_mode="same"))
-    model.add(ELU())
-    model.add(Convolution2D(32, 5, 5, subsample=(2, 2), border_mode="same"))
-    model.add(ELU())
-    model.add(Convolution2D(64, 5, 5, subsample=(2, 2), border_mode="same"))
-    model.add(Flatten())
-    model.add(Dropout(.2))
-    model.add(ELU())
-    model.add(Dense(512))
-    model.add(Dropout(.5))
-    model.add(ELU())
-    model.add(Dense(1))
-
-    model.compile(optimizer="adam", loss="mse")
-
-    # Save model to json file
-    json_string = model.to_json()
-    with open('model.json','w') as f:
-            json.dump(json_string,f)
-    return model
-
-
-def initialize(training_type, model=createNvidiaModel(), plot=False, validation_split=0.8):
-    if(training_type == "test_with_3"):
-        img_list, angle_list = get_lists_from_file('test_driving_log.csv')
-        history =model.fit(np.array(img_list), np.array(angle_list),
-            batch_size=12, nb_epoch=50, validation_split=0.5, shuffle=True)
-        # from Jason Brownlee http://machinelearningmastery.com/display-deep-learning-model-training-history-in-keras/
-        # summarize history for loss
-        plt.plot(history.history['loss'])
-        plt.plot(history.history['val_loss'])
-        plt.title('model loss')
-        plt.ylabel('loss')
-        plt.xlabel('epoch')
-        plt.legend(['train', 'test'], loc='upper left')
-        plt.show()
-        model.save_weights("model.h5")
-        return model
-    else:
-        training_list = []
-        if(training_type == "full"):
-            training_list = get_list_from_file('data/driving_log.csv')
-        elif(training_type == "full_with_less_zeros"):
-            training_list = get_list_from_file('data/driving_log_less_zeros.csv')
-        elif(training_type == "test_with_3_generator"):
-            training_list = get_list_from_file('test_driving_log.csv')
-        else:
-            raise ValueError('Invalid training type')
-
-        print("list ln", len(training_list))
-
-        # Set aside some data for a test set
-        test_split_marker = int(len(training_list)*0.1)
-        test_list = training_list[:test_split_marker]
-
-        training_list = training_list[test_split_marker:]
-        list_length = len(training_list)
-
-        np.random.shuffle(training_list)
+def initialize(data_buckets, model=None):
+        if(model is None):
+            model = createNvidiaModel()
 
         # Adjust sample size to account for horizontal flipping in image processing
-        sample_size = 20000 #list_length * 2 * 5
-        batch_size = 64
-        nb_epoch = 12
-        train_generator = generate_arrays_from_lists(training_list, sample_size, batch_size=batch_size)
+        sample_size = 32 #20000
+        batch_size = 2 #64
+        nb_epoch = 5 #12
+        train_generator = generate_arrays_from_lists(data_buckets, sample_size, batch_size=batch_size)
+        validation_generator = generate_arrays_from_lists(data_buckets, sample_size, batch_size=batch_size)
 
-        np.random.shuffle(training_list)
-        validation_generator = generate_arrays_from_lists(training_list, sample_size, batch_size=batch_size)
-
-        nb_train_samples = int(list_length * validation_split)
+        nb_train_samples = int(sample_size * VALIDATION_SPLIT)
         print("nb_train_samples", nb_train_samples)
-        nb_val_samples = list_length - nb_train_samples
+        nb_val_samples = sample_size - nb_train_samples
         print("nb_val_samples", nb_val_samples)
         history = model.fit_generator(train_generator, samples_per_epoch=sample_size, nb_epoch=nb_epoch, validation_data=validation_generator, nb_val_samples=nb_val_samples)
         
@@ -330,25 +261,25 @@ def initialize(training_type, model=createNvidiaModel(), plot=False, validation_
         model.save_weights("model.h5")
 
         # Plot loss
-        plt.plot(history.history['loss'])
-        plt.plot(history.history['val_loss'])
-        plt.title('model loss')
-        plt.ylabel('loss')
-        plt.xlabel('epoch')
-        plt.legend(['train', 'validation'], loc='upper left')
-        plt.show()
+        # plt.plot(history.history['loss'])
+        # plt.plot(history.history['val_loss'])
+        # plt.title('model loss')
+        # plt.ylabel('loss')
+        # plt.xlabel('epoch')
+        # plt.legend(['train', 'validation'], loc='upper left')
+        # plt.show()
+        gc.collect()
         return model
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Training driving model')
-    parser.add_argument('training_mode', type=str,
-        help='Training mode type (test_with_3, full, full_with_less_zeros, test_from_less_zeros)')
-    parser.add_argument('plot', type=str, nargs='?', default=False,
-        help='Whether to display plot of loss after training.')
     parser.add_argument('model', type=str, nargs='?', default=None,
         help='Path to model definition json. Model weights should be on the same path.')
     args = parser.parse_args()
     gc.collect()
+
+    img_list, angle_list = get_lists_from_file('data/driving_log.csv')
+    data_buckets = segment_data_by_angles(angle_list, img_list)
 
     if args.model is not None:
         with open(args.model, 'r') as jfile:
@@ -356,8 +287,6 @@ if __name__ == '__main__':
             model.compile("adam", "mse")
             weights_file = args.model.replace('json', 'h5')
             model.load_weights(weights_file)
-            initialize(args.training_mode, model, args.plot)
+            initialize(data_buckets, model)
     else:
-        initialize(args.training_mode)
-    
-#TODO implement transfer learning from previous successful models
+        initialize(data_buckets)
