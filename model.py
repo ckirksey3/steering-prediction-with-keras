@@ -192,9 +192,9 @@ def generate_arrays_from_lists(data_buckets):
                 image_array = np.asarray(image)
 
                 # Add Image shifting
-                image_width = image.size[0]
-                shift_range = int(image_width * 0.1)
-                image_array, steering_angle = trans_image(image_array, 0.0, trans_range=shift_range)
+                # image_width = image.size[0]
+                # shift_range = int(image_width * 0.1)
+                # image_array, steering_angle = trans_image(image_array, 0.0, trans_range=shift_range)
                 
                 transformed_image_array, flipped_transformed_image_array = process_img(image_array, add_dimension=False)
 
