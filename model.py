@@ -32,41 +32,39 @@ ANGLE_ADJUSTMENT = 0.25
 # Range of noise to add to steering angle
 ANGLE_NOISE_MAX = 0.05
 
-# Random shadow
-# Created by Vivek Yadav (https://chatbotslife.com/using-augmentation-to-mimic-human-driving-496b569760a9#.fwuosa9qd)
-def add_random_shadow(image):
-    top_y = 320*np.random.uniform()
-    top_x = 0
-    bot_x = 160
-    bot_y = 320*np.random.uniform()
-    image_hls = cv2.cvtColor(image,cv2.COLOR_RGB2HLS)
-    shadow_mask = 0*image_hls[:,:,1]
-    X_m = np.mgrid[0:image.shape[0],0:image.shape[1]][0]
-    Y_m = np.mgrid[0:image.shape[0],0:image.shape[1]][1]
-    shadow_mask[((X_m-top_x)*(bot_y-top_y) -(bot_x - top_x)*(Y_m-top_y) >=0)]=1
-    random_bright = .25+.7*np.random.uniform()
-    if np.random.randint(2)==1:
-        # random_bright = .5
-        cond1 = shadow_mask==1
-        cond0 = shadow_mask==0
-        if np.random.randint(2)==1:
-            image_hls[:,:,1][cond1] = image_hls[:,:,1][cond1]*random_bright
+# Min bucket size for steering angle distribution
+MIN_BUCKET_SIZE = 2
+
+# PERCENTAGE OF DATA TO BE USED FOR TRAINING INSTEAD OF VALIDATION
+VALIDATION_SPLIT = 0.75
+
+BATCH_SIZE = 1024
+SAMPLE_SIZE = 1024 * 32
+NB_EPOCH = 12
+
+# Breaks input into buckets based on steering angle
+def segment_data_by_angles(angles, images):
+    counts, bucket_indices = np.histogram(angles, bins='auto')
+    bucket_increment = bucket_indices[1] - bucket_indices[0]
+    bucket_min = bucket_indices[0]
+    buckets = [list() for _ in range(len(counts))]
+    for i in range(len(angles)):
+        img = images[i]
+        angle = angles[i]
+        bucket_index = int((angle - bucket_min)/bucket_increment)
+        bucket_index = min(bucket_index, len(buckets) - 1)
+        bucket_index = max(bucket_index, 0)
+        buckets[bucket_index].append({'img': img, 'angle': angle})
+    merged_buckets = []
+    merged_buckets.append(buckets[0])
+    for i in range(1, len(buckets)):
+        if(len(buckets[i]) < MIN_BUCKET_SIZE):
+            merged_buckets[-1] += buckets[i]
         else:
-            image_hls[:,:,1][cond0] = image_hls[:,:,1][cond0]*random_bright    
-    image = cv2.cvtColor(image_hls,cv2.COLOR_HLS2RGB)
-    return image
+            merged_buckets.append(buckets[i])
+    return merged_buckets
 
 def image_pre_processing(img):
-    #Add random shadow
-    img = add_random_shadow(img)
-
-    # Add random brightness
-    # Borrowed from Mohan Karthik's post (https://medium.com/@mohankarthik/cloning-a-car-to-mimic-human-driving-5c2f7e8d8aff)
-    img = cv2.cvtColor(img,cv2.COLOR_RGB2HSV)
-    bright = .25+np.random.uniform()
-    img[:,:,2] = img[:,:,2]*bright
-    img = cv2.cvtColor(img,cv2.COLOR_HSV2RGB)
-
     # Crop off top and bottom  of image to focus on road
     processed = img[60:140, 0:320]
 
@@ -90,14 +88,16 @@ def choose_image_and_adjust_angle(center_img_loc, left_img_loc, right_img_loc, s
         steering_angle -= ANGLE_ADJUSTMENT
     return image_loc, steering_angle
 
-def process_line(line):
+def process_line(line, direction):
     items = [x.strip() for x in line.split(',')]
-    center_img_loc = items[0]
-    left_img_loc = items[1]
-    right_img_loc = items[2]
+    img_loc = items[direction]
     steering_angle = float(items[3])
     steering_angle = add_random_noise_to_angle(steering_angle)
-    return choose_image_and_adjust_angle(center_img_loc, left_img_loc, right_img_loc, steering_angle)
+    if(direction == 1):
+        steering_angle += ANGLE_ADJUSTMENT
+    elif(direction == 2):
+        steering_angle -= ANGLE_ADJUSTMENT
+    return img_loc, steering_angle
 
 def process_img(image_array, add_dimension=False):
     image_array = image_pre_processing(image_array)
@@ -116,80 +116,33 @@ def is_far_from_zero(angle, epoch):
     bias = 1. / (epoch + 1.)
     threshold = np.random.uniform()
     return ((abs(angle) + bias) > threshold)
-
-def generate_arrays_from_file(path, use_batches=False, batch_size=10):
-    f = open(path)
-    while 1:
-        if(use_batches):
-            images = []
-            angles = []
-            current = 0
-            for line in f:
-                current += 1
-                center_img, steering_angle = process_line(line)
-                images.append(center_img)
-                angles.append(steering_angle)
-                if(current >= batch_size):
-                    shuffle(images)
-                    shuffle(angles)
-                    yield (images, angles)
-                    current = 0
-                    images = []
-                    angles = []
-            f.close()
-        else:
-            for line in f:
-                center_img, steering_angle = process_line(line)
-                yield (center_img, steering_angle)
-        f.close()
-
-# Image shifts
-# Created by Vivek Yadav (https://chatbotslife.com/using-augmentation-to-mimic-human-driving-496b569760a9#.fwuosa9qd)
-def trans_image(image,steer,trans_range):
-    tr_x = trans_range*np.random.uniform()-trans_range/2
-    steer_ang = steer + tr_x/trans_range*2*.2
-    tr_y = 40*np.random.uniform()-40/2
-    Trans_M = np.float32([[1,0,tr_x],[0,1,tr_y]])
-    image_tr = cv2.warpAffine(image,Trans_M,(image.shape[1], image.shape[0]))
-    return image_tr,steer_ang        
-
+  
 def get_lists_from_file(path):
     f = open(path)
     img_list = []
     angle_list = []
     for line in f:
-        img_loc, steering_angle = process_line(line)
-        image = Image.open(img_loc)
-        image_array = np.asarray(image)
-        image_width = image.size[0]
-        shift_range = 0
-        # image_array, steering_angle = trans_image(image_array, steering_angle, trans_range=shift_range)
-        transformed_image_array, flipped_transformed_image_array = process_img(image_array, add_dimension=False)
-        img_list.append(transformed_image_array)
-        angle_list.append(steering_angle)
+        for direction in range(2):
+            img_loc, steering_angle = process_line(line, direction)
+            img_list.append(img_loc)
+            angle_list.append(steering_angle)
     return img_list, angle_list
 
-def get_list_from_file(path):
-    f = open(path)
-    training_list = []
-    for line in f:
-        center_img, steering_angle = process_line(line)
-        training_list.append({'center_img': center_img, 'steering_angle': steering_angle})
-    return training_list
-
-def generate_arrays_from_lists(training_list, sample_size, batch_size=1):
-
+def generate_arrays_from_lists(data_buckets):
     i = 0
     image_list = []
     angle_list = []
+    index_within_each_list = 0
     while 1:
-        for dataPoint in training_list:
+        for training_list in data_buckets:
+            bucket_length = len(training_list)
+            dataPoint = training_list[index_within_each_list % bucket_length]
             i += 2
-            epoch = i/sample_size
-            center_img_loc = dataPoint['center_img']
-            steering_angle = dataPoint['steering_angle']
+            epoch = i/SAMPLE_SIZE
+            img_loc = dataPoint['img']
+            steering_angle = dataPoint['angle']
             if(is_far_from_zero(steering_angle, epoch)):
-                image = Image.open(center_img_loc)
+                image = Image.open(img_loc)
                 image_array = np.asarray(image)
                 
                 transformed_image_array, flipped_transformed_image_array = process_img(image_array, add_dimension=False)
@@ -202,35 +155,33 @@ def generate_arrays_from_lists(training_list, sample_size, batch_size=1):
                 image_list.append(flipped_transformed_image_array)
                 angle_list.append(float(steering_angle) * -1.0)
 
-                if(len(image_list) >= batch_size):
+                if(len(image_list) >= BATCH_SIZE):
                     yield(np.array(image_list), np.array(angle_list))
                     image_list = []
                     angle_list = []
+        index_within_each_list += 1
 
 def createNvidiaModel():
     col, row, ch = INPUT_IMG_WIDTH, INPUT_IMG_HEIGHT, INPUT_CHANNELS  # camera format
-
     #Create CNN based on NVIDIA paper (http://images.nvidia.com/content/tegra/automotive/images/2016/solutions/pdf/end-to-end-dl-using-px.pdf)
     model = Sequential()
     #Add lambda function to avoid pre-processing outside of network
     model.add(Lambda(lambda x: x/127.5 - 1.,
         input_shape=(col, row, ch),
         output_shape=(col, row, ch)))
-    # model.add(Reshape((66, 200, 3), input_shape=(160, 320, 3)))
-    #Deviates from NVIDIA paper
     model.add(Conv2D(3, 5, 5, input_shape=(80, 160, 3), subsample=(2, 2), activation='relu'))
-    # model.add(BatchNormalization())
-    # model.add(Conv2D(3, 5, 5, input_shape=(80, 160, 3), subsample=(2, 2), activation='relu'))
     model.add(Conv2D(24, 5, 5, input_shape=(31, 98, 3), subsample=(2, 2), activation='relu'))
     model.add(Conv2D(36, 5, 5, input_shape=(5, 22, 3), subsample=(2, 2), activation='relu'))
     model.add(Conv2D(48, 3, 3, input_shape=(3, 20, 3), activation='relu'))
     model.add(Conv2D(64, 3, 3, input_shape=(1, 18, 3), activation='relu'))
     model.add(Flatten())
-    model.add(Dropout(.2))
     model.add(Dense(1164, activation='linear'))
     model.add(Dropout(.5))
     model.add(Dense(100, activation='linear'))
+    model.add(Dropout(.2))
     model.add(Dense(50, activation='linear'))
+    model.add(Dropout(.1))
+    model.add(Dense(10, activation='linear'))
     model.add(Dense(1, activation='linear'))
     model.summary()
     model.compile(loss='mean_squared_error',
@@ -243,112 +194,35 @@ def createNvidiaModel():
             json.dump(json_string,f)
     return model
 
-def createOldModel():
-    col, row, ch = INPUT_IMG_WIDTH, INPUT_IMG_HEIGHT, 1  # camera format
+def initialize(data_buckets, model=None):
+        if(model is None):
+            model = createNvidiaModel()
 
-    model = Sequential()
-    model.add(Lambda(lambda x: x/127.5 - 1.,
-        input_shape=(col, row, ch),
-        output_shape=(col, row, ch)))
-    model.add(Convolution2D(16, 8, 8, subsample=(4, 4), border_mode="same"))
-    model.add(ELU())
-    model.add(Convolution2D(32, 5, 5, subsample=(2, 2), border_mode="same"))
-    model.add(ELU())
-    model.add(Convolution2D(64, 5, 5, subsample=(2, 2), border_mode="same"))
-    model.add(Flatten())
-    model.add(Dropout(.2))
-    model.add(ELU())
-    model.add(Dense(512))
-    model.add(Dropout(.5))
-    model.add(ELU())
-    model.add(Dense(1))
+        train_generator = generate_arrays_from_lists(data_buckets)
+        validation_generator = generate_arrays_from_lists(data_buckets)
 
-    model.compile(optimizer="adam", loss="mse")
-
-    # Save model to json file
-    json_string = model.to_json()
-    with open('model.json','w') as f:
-            json.dump(json_string,f)
-    return model
-
-
-def initialize(training_type, model=createNvidiaModel(), plot=False, validation_split=0.8):
-    if(training_type == "test_with_3"):
-        img_list, angle_list = get_lists_from_file('test_driving_log.csv')
-        history =model.fit(np.array(img_list), np.array(angle_list),
-            batch_size=12, nb_epoch=50, validation_split=0.5, shuffle=True)
-        # from Jason Brownlee http://machinelearningmastery.com/display-deep-learning-model-training-history-in-keras/
-        # summarize history for loss
-        plt.plot(history.history['loss'])
-        plt.plot(history.history['val_loss'])
-        plt.title('model loss')
-        plt.ylabel('loss')
-        plt.xlabel('epoch')
-        plt.legend(['train', 'test'], loc='upper left')
-        plt.show()
-        model.save_weights("model.h5")
-        return model
-    else:
-        training_list = []
-        if(training_type == "full"):
-            training_list = get_list_from_file('data/driving_log.csv')
-        elif(training_type == "full_with_less_zeros"):
-            training_list = get_list_from_file('data/driving_log_less_zeros.csv')
-        elif(training_type == "test_with_3_generator"):
-            training_list = get_list_from_file('test_driving_log.csv')
-        else:
-            raise ValueError('Invalid training type')
-
-        print("list ln", len(training_list))
-
-        # Set aside some data for a test set
-        test_split_marker = int(len(training_list)*0.1)
-        test_list = training_list[:test_split_marker]
-
-        training_list = training_list[test_split_marker:]
-        list_length = len(training_list)
-
-        np.random.shuffle(training_list)
-
-        # Adjust sample size to account for horizontal flipping in image processing
-        sample_size = 20000 #list_length * 2 * 5
-        batch_size = 64
-        nb_epoch = 12
-        train_generator = generate_arrays_from_lists(training_list, sample_size, batch_size=batch_size)
-
-        np.random.shuffle(training_list)
-        validation_generator = generate_arrays_from_lists(training_list, sample_size, batch_size=batch_size)
-
-        nb_train_samples = int(list_length * validation_split)
+        nb_train_samples = int(SAMPLE_SIZE * VALIDATION_SPLIT)
         print("nb_train_samples", nb_train_samples)
-        nb_val_samples = list_length - nb_train_samples
+        nb_val_samples = SAMPLE_SIZE - nb_train_samples
         print("nb_val_samples", nb_val_samples)
-        history = model.fit_generator(train_generator, samples_per_epoch=sample_size, nb_epoch=nb_epoch, validation_data=validation_generator, nb_val_samples=nb_val_samples)
+        history = model.fit_generator(train_generator, samples_per_epoch=SAMPLE_SIZE, nb_epoch=NB_EPOCH, validation_data=validation_generator, nb_val_samples=nb_val_samples)
         
         # Save history and weights
         pickle.dump(history.history, open('history.p', 'wb'))
         model.save_weights("model.h5")
 
-        # Plot loss
-        plt.plot(history.history['loss'])
-        plt.plot(history.history['val_loss'])
-        plt.title('model loss')
-        plt.ylabel('loss')
-        plt.xlabel('epoch')
-        plt.legend(['train', 'validation'], loc='upper left')
-        plt.show()
+        gc.collect()
         return model
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Training driving model')
-    parser.add_argument('training_mode', type=str,
-        help='Training mode type (test_with_3, full, full_with_less_zeros, test_from_less_zeros)')
-    parser.add_argument('plot', type=str, nargs='?', default=False,
-        help='Whether to display plot of loss after training.')
     parser.add_argument('model', type=str, nargs='?', default=None,
         help='Path to model definition json. Model weights should be on the same path.')
     args = parser.parse_args()
     gc.collect()
+
+    img_list, angle_list = get_lists_from_file('data/driving_log.csv')
+    data_buckets = segment_data_by_angles(angle_list, img_list)
 
     if args.model is not None:
         with open(args.model, 'r') as jfile:
@@ -356,8 +230,6 @@ if __name__ == '__main__':
             model.compile("adam", "mse")
             weights_file = args.model.replace('json', 'h5')
             model.load_weights(weights_file)
-            initialize(args.training_mode, model, args.plot)
+            initialize(data_buckets, model)
     else:
-        initialize(args.training_mode)
-    
-#TODO implement transfer learning from previous successful models
+        initialize(data_buckets)
