@@ -244,9 +244,9 @@ def initialize(data_buckets, model=None):
             model = createNvidiaModel()
 
         # Adjust sample size to account for horizontal flipping in image processing
-        sample_size = 32 #20000
-        batch_size = 2 #64
-        nb_epoch = 5 #12
+        sample_size = 25000
+        batch_size = 64
+        nb_epoch = 30
         train_generator = generate_arrays_from_lists(data_buckets, sample_size, batch_size=batch_size)
         validation_generator = generate_arrays_from_lists(data_buckets, sample_size, batch_size=batch_size)
 
@@ -260,14 +260,6 @@ def initialize(data_buckets, model=None):
         pickle.dump(history.history, open('history.p', 'wb'))
         model.save_weights("model.h5")
 
-        # Plot loss
-        # plt.plot(history.history['loss'])
-        # plt.plot(history.history['val_loss'])
-        # plt.title('model loss')
-        # plt.ylabel('loss')
-        # plt.xlabel('epoch')
-        # plt.legend(['train', 'validation'], loc='upper left')
-        # plt.show()
         gc.collect()
         return model
 
