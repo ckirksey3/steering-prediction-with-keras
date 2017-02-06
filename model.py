@@ -48,7 +48,6 @@ def segment_data_by_angles(angles, images):
     bucket_increment = bucket_indices[1] - bucket_indices[0]
     bucket_min = bucket_indices[0]
     buckets = [list() for _ in range(len(counts))]
-    # TODO adjust for flipping images
     for i in range(len(angles)):
         img = images[i]
         angle = angles[i]
@@ -65,41 +64,7 @@ def segment_data_by_angles(angles, images):
             merged_buckets.append(buckets[i])
     return merged_buckets
 
-# Random shadow
-# Created by Vivek Yadav (https://chatbotslife.com/using-augmentation-to-mimic-human-driving-496b569760a9#.fwuosa9qd)
-def add_random_shadow(image):
-    top_y = 320*np.random.uniform()
-    top_x = 0
-    bot_x = 160
-    bot_y = 320*np.random.uniform()
-    image_hls = cv2.cvtColor(image,cv2.COLOR_RGB2HLS)
-    shadow_mask = 0*image_hls[:,:,1]
-    X_m = np.mgrid[0:image.shape[0],0:image.shape[1]][0]
-    Y_m = np.mgrid[0:image.shape[0],0:image.shape[1]][1]
-    shadow_mask[((X_m-top_x)*(bot_y-top_y) -(bot_x - top_x)*(Y_m-top_y) >=0)]=1
-    random_bright = .25+.7*np.random.uniform()
-    if np.random.randint(2)==1:
-        # random_bright = .5
-        cond1 = shadow_mask==1
-        cond0 = shadow_mask==0
-        if np.random.randint(2)==1:
-            image_hls[:,:,1][cond1] = image_hls[:,:,1][cond1]*random_bright
-        else:
-            image_hls[:,:,1][cond0] = image_hls[:,:,1][cond0]*random_bright    
-    image = cv2.cvtColor(image_hls,cv2.COLOR_HLS2RGB)
-    return image
-
 def image_pre_processing(img):
-    #Add random shadow
-    # img = add_random_shadow(img)
-
-    # Add random brightness
-    # Borrowed from Mohan Karthik's post (https://medium.com/@mohankarthik/cloning-a-car-to-mimic-human-driving-5c2f7e8d8aff)
-    # img = cv2.cvtColor(img,cv2.COLOR_RGB2HSV)
-    # bright = .25+np.random.uniform()
-    # img[:,:,2] = img[:,:,2]*bright
-    # img = cv2.cvtColor(img,cv2.COLOR_HSV2RGB)
-
     # Crop off top and bottom  of image to focus on road
     processed = img[60:140, 0:320]
 
@@ -151,18 +116,7 @@ def is_far_from_zero(angle, epoch):
     bias = 1. / (epoch + 1.)
     threshold = np.random.uniform()
     return ((abs(angle) + bias) > threshold)
-
-# Image shifts
-# Created by Vivek Yadav (https://chatbotslife.com/using-augmentation-to-mimic-human-driving-496b569760a9#.fwuosa9qd)
-def trans_image(image,steer,trans_range):
-    tr_x = trans_range*np.random.uniform()-trans_range/2
-    steer_ang = steer + tr_x/trans_range*2*.2
-    tr_y = 40*np.random.uniform()-40/2
-    Trans_M = np.float32([[1,0,tr_x],[0,1,tr_y]])
-    image_tr = cv2.warpAffine(image,Trans_M,(image.shape[1], image.shape[0]))
-    return image_tr,steer_ang        
-
-
+  
 def get_lists_from_file(path):
     f = open(path)
     img_list = []
@@ -190,11 +144,6 @@ def generate_arrays_from_lists(data_buckets):
             if(is_far_from_zero(steering_angle, epoch)):
                 image = Image.open(img_loc)
                 image_array = np.asarray(image)
-
-                # Add Image shifting
-                # image_width = image.size[0]
-                # shift_range = int(image_width * 0.1)
-                # image_array, steering_angle = trans_image(image_array, 0.0, trans_range=shift_range)
                 
                 transformed_image_array, flipped_transformed_image_array = process_img(image_array, add_dimension=False)
 
@@ -214,18 +163,13 @@ def generate_arrays_from_lists(data_buckets):
 
 def createNvidiaModel():
     col, row, ch = INPUT_IMG_WIDTH, INPUT_IMG_HEIGHT, INPUT_CHANNELS  # camera format
-
     #Create CNN based on NVIDIA paper (http://images.nvidia.com/content/tegra/automotive/images/2016/solutions/pdf/end-to-end-dl-using-px.pdf)
     model = Sequential()
     #Add lambda function to avoid pre-processing outside of network
     model.add(Lambda(lambda x: x/127.5 - 1.,
         input_shape=(col, row, ch),
         output_shape=(col, row, ch)))
-    # model.add(Reshape((66, 200, 3), input_shape=(160, 320, 3)))
-    #Deviates from NVIDIA paper
     model.add(Conv2D(3, 5, 5, input_shape=(80, 160, 3), subsample=(2, 2), activation='relu'))
-    # model.add(BatchNormalization())
-    # model.add(Conv2D(3, 5, 5, input_shape=(80, 160, 3), subsample=(2, 2), activation='relu'))
     model.add(Conv2D(24, 5, 5, input_shape=(31, 98, 3), subsample=(2, 2), activation='relu'))
     model.add(Conv2D(36, 5, 5, input_shape=(5, 22, 3), subsample=(2, 2), activation='relu'))
     model.add(Conv2D(48, 3, 3, input_shape=(3, 20, 3), activation='relu'))

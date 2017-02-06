@@ -7,15 +7,10 @@ from PIL import Image
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
-# import plotly.plotly as py
 
 def display_processed_img(image_loc):
     image = Image.open(image_loc)
     image_array = np.asarray(image)
-
-    image_width = image.size[0]
-    shift_range = int(image_width * 0.2)
-    image_array, steering_angle = trans_image(image_array, 0.0, trans_range=shift_range)
     image_array = image_pre_processing(image_array)
     image = Image.fromarray(np.uint8(image_array))
     image.show()
@@ -70,8 +65,6 @@ def simulate_penelize_zeros(angle_list):
 def display_angle_distribution():
     print("Processing file..")
     img_list, angle_list = get_lists_from_file('data/2.4_recording_dirt_turn/driving_log.csv')
-    # img_list, angle_list = get_lists_from_file('data/driving_log_less_zeros.csv')
-    # img_list, angle_list = get_lists_from_file('test_driving_log.csv')
     print("Finished")
     angle_list = simulate_camera_switching(angle_list)
     angle_list = simulate_axis_flip(angle_list)
@@ -82,8 +75,6 @@ def display_angle_distribution():
     plt.xlabel("Value")
     plt.ylabel("Frequency")
     plt.show()
-    # fig = plt.gcf()
-    # plot_url = py.plot_mpl(fig, filename='mpl-basic-histogram')
 
 if __name__ == '__main__':
     display_angle_distribution()

@@ -6,5 +6,3 @@ driving_log.csv
 history.p
 resources/
 test_driving_log.csv
-model.h5
-model.json
