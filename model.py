@@ -40,7 +40,7 @@ VALIDATION_SPLIT = 0.75
 
 BATCH_SIZE = 1024
 SAMPLE_SIZE = 1024 * 32
-NB_EPOCH = 5
+NB_EPOCH = 12
 
 # Breaks input into buckets based on steering angle
 def segment_data_by_angles(angles, images):
