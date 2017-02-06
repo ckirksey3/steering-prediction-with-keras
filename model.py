@@ -222,6 +222,15 @@ if __name__ == '__main__':
     gc.collect()
 
     img_list, angle_list = get_lists_from_file('data/driving_log.csv')
+    # Set aside some data for a test set
+    test_split_marker = int(len(img_list)*0.1)
+    test_img_list = img_list[:test_split_marker]
+    test_angle_list = angle_list[:test_split_marker]
+    pickle.dump(test_img_list, open('img_test.p', 'wb'))
+    pickle.dump(test_angle_list, open('angle_test.p', 'wb'))
+    
+    img_list = img_list[test_split_marker:]
+    angle_list = angle_list[test_split_marker:]
     data_buckets = segment_data_by_angles(angle_list, img_list)
 
     if args.model is not None:
