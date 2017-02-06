@@ -44,6 +44,9 @@ In addition to techniques for improving the angle distribution, I also experimen
 
 Although I originally converted all images to grayscale, I later removed this step as my model was having difficulty distinguishing the paved road from the dirt shortcut when the lane markers were removed. Finally, I resized the image to be smaller and square for quicker processing by the CNN.
 
+### Angle Buckets
+Despite all of this work to evenly distribute the angles, my model was still getting confused by sharp angles. There wasn't a sufficient frequency of sharp turns for the model to be evenly trained. While its bias to near-zero had been sufficiently reduced, it still had a bias toward small turns. I solved this by building a histogram of all of the steering angles in the training set, creating buckets for each of those ranges that include all the data points with steering angles in that range, and sampling evenly from each of those buckets. This was the step that finally pushed me over the edge and enabled my model to drive the entire course.
+
 ![Cropped Screenshot](data_analysis/compressed.png?raw=true "Preprocessing")
 
 ## Result Video
