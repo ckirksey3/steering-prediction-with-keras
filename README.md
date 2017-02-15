@@ -1,22 +1,33 @@
-# CarND-BehavioralCloning
+# Steering Prediction with Keras
 For this project, I created a convolutional neural network using the Keras Sequential model to predict the appropriate steering angle for staying on the track in a driving simulator. The model was trained on images and steering angles taken from driving in the simulator with some simple image preprocessing and the desampling of data points with near-zero steering angles to emphasize turning.
 
-## Usage
+## How to Run the Project
 
-### Train the model
+### Install Udacity Simulator
+Download and install the simulator from the [Udacity repo](https://github.com/udacity/self-driving-car-sim)
+
+### Train the model (Optional)
+You can train a new model yourself or skip directly to "Test the model in a simulator" to use my existing model.
+
+Train by opening the simulator and selecting "Training Mode." If you click the red record button, the simulator will begin saving images and steering angles to the directory that you specify. You'll need to update the call to get_lists_from_file in model.py to select your training log. Then you can run
 ```
 python model.py
 ```
+to train the model. 
 
-### Train the model with transfer learning
+### Train the model with transfer learning (Optional)
+If you'd like to continue training an existing model, just pass a reference to the model's .json definition.
 ```
 python model.py model.json
 ```
 
 ### Test the model in a simulator
+You can test an existing model by first running
 ```
 python drive.py model.json
 ```
+
+Then open the Udacity simulator and go to "Autonomous Mode." The vehicle should begin driving and steering in resposne to the images that it's reading in.
 
 ## Model Architecture Design
 My design process began by reading the [End to End Deep Learning with Self-Driving Cars paper](http://images.nvidia.com/content/tegra/automotive/images/2016/solutions/pdf/end-to-end-dl-using-px.pdf) by NVIDIA. 
